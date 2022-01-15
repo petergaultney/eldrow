@@ -36,9 +36,16 @@ tc = total_counts
 pos = position_counts
 rpos = reduced_position_counts
 
+
+def xf_dd_vals(xf, dd):
+    def xf_d_vals(d):
+        return {k: xf(v) for k, v in d.items()}
+    return {dk: xf_d_vals(dv) for dk, dv in dd.items()}
+
+
 very_unusual_letters = 'vzjxq'
 
-def score_words(*words: str) -> int:
+def score_words(*words: str, position_counts: dict = position_counts) -> int:
     """Scores words based on total positional score across the word list.
 
     Does not help you solve.
@@ -78,7 +85,7 @@ def best_next_score(word_list: Sequence[str], *words) -> Tuple[int, List[str]]:
     return high_score, best_words
 
 
-def solver_regex(green: dict, yellow: dict, gray: set, n: int = 5) -> str:
+def solver_regexes(green: dict, yellow: dict, gray: set, n: int = 5) -> Tuple[str, ...]:
     def pos(i):
         if i in green:
             return green[i]
@@ -92,17 +99,22 @@ def solver_regex(green: dict, yellow: dict, gray: set, n: int = 5) -> str:
             char_regex += c
         char_regex += ']'
         return char_regex
-    return ''.join(pos(i) for i in range(n))
+    yellow_chars = set()
+    for chars in yellow.values():
+        yellow_chars |= chars
+    return (''.join(pos(i) for i in range(n)),) + tuple(c for c in yellow_chars)
 
 
-def find_with_regex(regex, wl: list = five_letter_word_list):
+def find_with_regexes(regexes: tuple, wl: list = five_letter_word_list):
+    print(regexes)
     for w in wl:
-        if regex.match(w):
+        if all(regex.search(w) for regex in regexes):
             yield w
 
 
-def options(regex_str: str) -> list:
-    return list(find_with_regex(re.compile(regex_str)))
+def options(regex_strs: Sequence[str]) -> list:
+    regexes = tuple(re.compile(regex_str) for regex_str in regex_strs)
+    return list(find_with_regexes(regexes))
 
 
 def given(*guesses, n: int = 5) -> Tuple[dict, dict, str]:
@@ -131,7 +143,7 @@ def given(*guesses, n: int = 5) -> Tuple[dict, dict, str]:
             elif c in string.ascii_uppercase: # yellow
                 if i not in yellow:
                     yellow[i] = set()
-                yellow[i].add(c)
+                yellow[i].add(c.lower())
             else:
                 gray += c
             if c == ' ':
