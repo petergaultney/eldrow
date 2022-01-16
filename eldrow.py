@@ -68,29 +68,42 @@ pos = position_scores
 
 very_unusual_letters = 'vzjxq'
 
-def score_words(*words: str, position_scores: dict = position_scores) -> int:
+def score_words(*words: str, position_scores: dict = position_scores) -> float:
     """Scores words based on total positional score across the word list.
 
-    Does not help you solve.
+    Only scores a character the first time it appears.
     """
     score = 0
-    found = set()
-    for w in words:
+    times_scored = defaultdict(int)
+
+    def score_word(w):
+        word_score = 0
         for i, c in enumerate(w):
-            if c not in found:
-                found.add(c)
-                score += position_scores[i].get(c, 0)
+            if i not in position_scores:
+                break
+            pos = position_scores[i]
+            if c not in pos:
+                # letter literally not an option in this location.
+                # it gets no score here, and will be fully scored
+                # elsewhere.
+                continue
+            pos_score = pos[c]
+            times_scored[c] += 1
+            word_score += pos_score / times_scored[c]
+        return word_score
+
+    for w in words:
+        score += score_word(w)
     return round(score, 3)
 
 
-def yield_high_tuples(word_list: list = five_letter_word_list, n: int = 2, floor: int = 16000) -> Iterator[Tuple[int, str, str]]:
+def yield_high_tuples(word_list: list = five_letter_word_list, n: int = 2) -> Iterator[Tuple[int, str, str]]:
     for words in combinations(word_list, n):
         score = score_words(*words)
-        if score >= floor:
-            yield (score, *words)
+        yield (score, *words)
 
 
-def best_next_score(word_list: Sequence[str], *words, position_scores=position_scores) -> List[Tuple[int, str]]:
+def best_next_score(word_list: Sequence[str], *starting_words, position_scores=position_scores) -> List[Tuple[int, str]]:
     """Determines a best next word score without regard to solving.
 
     Mostly useful for playing around with different combinations of
@@ -98,7 +111,7 @@ def best_next_score(word_list: Sequence[str], *words, position_scores=position_s
     """
     best_words = list()
     for w_next in word_list:
-        score = score_words(*words, w_next, position_scores=position_scores)
+        score = score_words(*starting_words, w_next, position_scores=position_scores)
         best_words.append((score, w_next))
     return sorted(best_words)
 
@@ -182,37 +195,49 @@ class IpythonSolver(Magics):
     def __init__(self, shell, guesses: List[str] = list()):
         # You must call the parent constructor
         super(IpythonSolver, self).__init__(shell)
-        self.guesses = guesses or list()
+        self._guesses = guesses or list()
         self.ideas = list()
         self.limit = 30
 
     def _cur_options(self):
-        return options(solver_regexes(*given(*self.guesses)))
+        return options(solver_regexes(*given(*self._guesses)))
 
     @line_magic
     def limit(self, line):
         self.limit = int(line)
 
     @line_magic
-    def current(self, line):
-        return self.guesses
+    def guesses(self, line):
+        return self._guesses
 
     @line_magic
     def words(self, _):
-        return _simple_words(*self.guesses)
+        return _simple_words(*self._guesses)
 
     @line_magic
-    def score_words(self, words):
-        return score_words(*_simple_words(*self.guesses), *words.split(), position_scores=construct_position_freqs(self._cur_options()))
+    def score(self, words):
+        return score_words(*words.split(), position_scores=construct_position_freqs(self._cur_options()))
 
     @line_magic
     def guess(self, line):
-        self.guesses.append(line)
-        print('guesses', self.guesses)
+        self._guesses.append(line)
+        return self._guesses
 
     @line_magic
     def g(self, line):
-        return self.guess(line)
+        if line:
+            return self.guess(line)
+        return self._guesses
+
+    @line_magic
+    def ideas(self, _):
+        return [f'{idea} ({i + 1})' for i, idea in enumerate(self.ideas)]
+
+    @line_magic
+    def idea(self, line):
+        idea_num = int(line)
+        if idea_num > 0 and idea_num <= len(self.ideas):
+            self.guess(self.ideas[idea_num - 1])
 
     @line_magic
     def options(self, _):
@@ -220,26 +245,41 @@ class IpythonSolver(Magics):
 
     @line_magic
     def best_options(self, limit):
-        opts = self._cur_options()
+        """Scores all remaining options against the position scores for remaining words"""
+        remaining_words = self._cur_options()
         limit = int(limit) if limit else self.limit
-        return best_next_score(opts, *_simple_words(*self.guesses), position_scores=construct_position_freqs(opts))[-limit:]
+        return best_next_score(
+            remaining_words,
+            *_simple_words(*self._guesses),
+            position_scores=construct_position_freqs(remaining_words),
+        )[-limit:]
 
     @line_magic
-    def best_next_guesses(self, limit):
+    def best_info(self, limit):
         """Uses full word list to maximize information score, rather than limiting to words it 'could' be"""
         opts = self._cur_options()
         limit = int(limit) if limit else self.limit
-        return best_next_score(wl, *_simple_words(*self.guesses), position_scores=construct_position_freqs(opts))[-limit:]
+        return best_next_score(
+            five_letter_word_list,
+            *_simple_words(*self._guesses),
+            position_scores=construct_position_freqs(opts)
+        )[-limit:]
 
     @line_magic
-    def pop(self, line):
-        idea = self.guesses.pop()
+    def pop(self, _):
+        idea = self._guesses.pop()
         if idea not in self.ideas:
             self.ideas.append(idea)
+        print(self._guesses)
 
     @line_magic
     def scores(self, _):
         return construct_position_freqs(self._cur_options())
+
+    @line_magic
+    def reset(self, _):
+        self._guesses = list()
+        self.ideas = list()
 
 
 def load_ipython_extension(ipython):  # magic name
