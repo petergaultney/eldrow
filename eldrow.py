@@ -4,8 +4,9 @@ import argparse
 import re
 import string
 import json
+from collections import defaultdict
 from itertools import combinations
-from typing import Iterator, Tuple, List, Sequence
+from typing import Iterator, Tuple, List, Sequence, Dict
 
 
 with open('5_letter_words.txt') as f:
@@ -19,11 +20,40 @@ with open('counts.json') as f:
 
 total_counts = counts['total_counts']
 
-def int_positions(d):
-    return {int(pos): c for pos, c in d.items()}
 
-position_counts = int_positions(counts['position_counts'])
-reduced_position_counts = int_positions(counts['reduced_position_counts'])  # only more common letters
+def _sort_dict_by_values(d):
+    return {k: v for k, v in sorted(d.items(), key=lambda item: item[1])}
+
+
+def _xf_dict_vals(xf, d):
+    return {k: xf(v) for k, v in d.items()}
+
+
+def _xf_dd_vals(xf, dd):
+    def xf_d_vals(d):
+        return {k: xf(v) for k, v in d.items()}
+    return {dk: xf_d_vals(dv) for dk, dv in dd.items()}
+
+
+PositionCounts = Dict[int, Dict[str, int]]
+
+
+def construct_position_freqs(word_list: List[str], decimal_points=5) -> PositionCounts:
+    counts = defaultdict(lambda: defaultdict(int))
+    for word in word_list:
+        for i, char in enumerate(word):
+            counts[i][char] += 1
+
+    def count_to_freq(count: int) -> float:
+        return round(count / len(word_list), decimal_points)
+
+    return {
+        k: _xf_dict_vals(count_to_freq, _sort_dict_by_values(v))
+        for k, v in counts.items()
+    }
+
+
+position_scores = construct_position_freqs(five_letter_word_list)
 
 with open('best_pairs.json') as f:
     # this represents significant computation (on the order of several minutes)
@@ -33,19 +63,12 @@ with open('best_pairs.json') as f:
 # some shorthand
 wl = five_letter_word_list
 tc = total_counts
-pos = position_counts
-rpos = reduced_position_counts
-
-
-def xf_dd_vals(xf, dd):
-    def xf_d_vals(d):
-        return {k: xf(v) for k, v in d.items()}
-    return {dk: xf_d_vals(dv) for dk, dv in dd.items()}
+pos = position_scores
 
 
 very_unusual_letters = 'vzjxq'
 
-def score_words(*words: str, position_counts: dict = position_counts) -> int:
+def score_words(*words: str, position_scores: dict = position_scores) -> int:
     """Scores words based on total positional score across the word list.
 
     Does not help you solve.
@@ -56,8 +79,8 @@ def score_words(*words: str, position_counts: dict = position_counts) -> int:
         for i, c in enumerate(w):
             if c not in found:
                 found.add(c)
-                score += position_counts[i][c]
-    return score
+                score += position_scores[i].get(c, 0)
+    return round(score, 3)
 
 
 def yield_high_tuples(word_list: list = five_letter_word_list, n: int = 2, floor: int = 16000) -> Iterator[Tuple[int, str, str]]:
@@ -67,22 +90,17 @@ def yield_high_tuples(word_list: list = five_letter_word_list, n: int = 2, floor
             yield (score, *words)
 
 
-def best_next_score(word_list: Sequence[str], *words) -> Tuple[int, List[str]]:
+def best_next_score(word_list: Sequence[str], *words, position_scores=position_scores) -> List[Tuple[int, str]]:
     """Determines a best next word score without regard to solving.
 
     Mostly useful for playing around with different combinations of
     two and three word starts, to find something you actually like.
     """
-    high_score = 0
     best_words = list()
     for w_next in word_list:
-        score = score_words(*words, w_next)
-        if score > high_score:
-            high_score = score
-            best_words = [w_next]
-        elif score == high_score:
-            best_words.append(w_next)
-    return high_score, best_words
+        score = score_words(*words, w_next, position_scores=position_scores)
+        best_words.append((score, w_next))
+    return sorted(best_words)
 
 
 def solver_regexes(green: dict, yellow: dict, gray: set, n: int = 5) -> Tuple[str, ...]:
@@ -106,15 +124,9 @@ def solver_regexes(green: dict, yellow: dict, gray: set, n: int = 5) -> Tuple[st
 
 
 def find_with_regexes(regexes: tuple, wl: list = five_letter_word_list):
-    print(regexes)
     for w in wl:
         if all(regex.search(w) for regex in regexes):
             yield w
-
-
-def options(regex_strs: Sequence[str]) -> list:
-    regexes = tuple(re.compile(regex_str) for regex_str in regex_strs)
-    return list(find_with_regexes(regexes))
 
 
 def given(*guesses, n: int = 5) -> Tuple[dict, dict, str]:
@@ -151,6 +163,77 @@ def given(*guesses, n: int = 5) -> Tuple[dict, dict, str]:
             else:
                 i += 1
     return green, yellow, gray
+
+
+def options(regex_strs: Sequence[str]) -> list:
+    regexes = tuple(re.compile(regex_str) for regex_str in regex_strs)
+    return list(find_with_regexes(regexes))
+
+
+def _simple_words(*guesses) -> List[str]:
+    return [guess.replace(' ', '').lower() for guess in guesses]
+
+
+def solve(init_state = None) -> List[str]:
+    ideas = list()
+    state = init_state or list()
+
+    def pop():
+        last_guess = state.pop()
+        if last_guess not in ideas:
+            ideas.append(last_guess)
+
+    def pick_idea():
+        try:
+            pick = int(input(', '.join([f'{idea} ({i + 1})' for i, idea in enumerate(ideas)])))
+            if pick > 0 and pick <= len(ideas):
+                state.append(ideas[pick - 1])
+        except ValueError:
+            pass
+
+    def quit():
+        raise KeyboardInterrupt('quit')
+
+    def c_options():
+        return options(solver_regexes(*given(*state)))
+
+    def c_best_next_scores():
+        return best_next_score(wl, *_simple_words(*state), position_scores=construct_position_freqs(c_options()))
+
+    def c_best_next_options():
+        opts = c_options()
+        return best_next_score(opts, *_simple_words(*state), position_scores=construct_position_freqs(opts))
+
+    def word():
+        return score_words(*_simple_words(*state), input('word to score: ').rstrip('\n'), position_scores=construct_position_freqs(c_options()))
+
+    cmds = dict()
+
+    def c_help():
+        print(cmds.keys())
+
+    cmds = {
+        'p': pop,
+        'i': pick_idea,
+        'q': quit,
+        'o': lambda: print(c_options()),
+        'b': lambda: print(list(reversed(c_best_next_scores()[-30:]))),
+        'n': lambda: print(list(reversed(c_best_next_options()[-30:]))),
+        's': lambda: print(state),
+        'w': lambda: print(word()),
+        'h': c_help,
+    }
+
+    try:
+        while True:
+            new_result = input("Next guess [or command (piqonswh)]? ").rstrip('\n')
+            if new_result in cmds:
+                cmds[new_result]()
+            elif len(new_result) >= 5:
+                state.append(new_result)
+    except (KeyboardInterrupt, EOFError):
+        return state
+
 
 def main():
     pass
