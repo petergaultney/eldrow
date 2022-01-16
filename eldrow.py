@@ -174,65 +174,76 @@ def _simple_words(*guesses) -> List[str]:
     return [guess.replace(' ', '').lower() for guess in guesses]
 
 
-def solve(init_state = None) -> List[str]:
-    ideas = list()
-    state = init_state or list()
+from IPython.core.magic import Magics, magics_class, line_magic
 
-    def pop():
-        last_guess = state.pop()
-        if last_guess not in ideas:
-            ideas.append(last_guess)
 
-    def pick_idea():
-        try:
-            pick = int(input(', '.join([f'{idea} ({i + 1})' for i, idea in enumerate(ideas)])))
-            if pick > 0 and pick <= len(ideas):
-                state.append(ideas[pick - 1])
-        except ValueError:
-            pass
+@magics_class
+class IpythonSolver(Magics):
+    def __init__(self, shell, guesses: List[str] = list()):
+        # You must call the parent constructor
+        super(IpythonSolver, self).__init__(shell)
+        self.guesses = guesses or list()
+        self.ideas = list()
+        self.limit = 30
 
-    def quit():
-        raise KeyboardInterrupt('quit')
+    def _cur_options(self):
+        return options(solver_regexes(*given(*self.guesses)))
 
-    def c_options():
-        return options(solver_regexes(*given(*state)))
+    @line_magic
+    def limit(self, line):
+        self.limit = int(line)
 
-    def c_best_next_scores():
-        return best_next_score(wl, *_simple_words(*state), position_scores=construct_position_freqs(c_options()))
+    @line_magic
+    def current(self, line):
+        return self.guesses
 
-    def c_best_next_options():
-        opts = c_options()
-        return best_next_score(opts, *_simple_words(*state), position_scores=construct_position_freqs(opts))
+    @line_magic
+    def words(self, _):
+        return _simple_words(*self.guesses)
 
-    def word():
-        return score_words(*_simple_words(*state), input('word to score: ').rstrip('\n'), position_scores=construct_position_freqs(c_options()))
+    @line_magic
+    def score_words(self, words):
+        return score_words(*_simple_words(*self.guesses), *words.split(), position_scores=construct_position_freqs(self._cur_options()))
 
-    cmds = dict()
+    @line_magic
+    def guess(self, line):
+        self.guesses.append(line)
+        print('guesses', self.guesses)
 
-    def c_help():
-        print(cmds.keys())
+    @line_magic
+    def g(self, line):
+        return self.guess(line)
 
-    cmds = {
-        'p': pop,
-        'i': pick_idea,
-        'q': quit,
-        'o': lambda: print(c_options()),
-        'b': lambda: print(list(reversed(c_best_next_scores()[-30:]))),
-        'n': lambda: print(list(reversed(c_best_next_options()[-30:]))),
-        's': lambda: print(state),
-        'w': lambda: print(word()),
-        'h': c_help,
-    }
+    @line_magic
+    def options(self, _):
+        return self._cur_options()
 
-    try:
-        while True:
-            new_result = input("Next guess [or command (piqonswh)]? ").rstrip('\n')
-            if new_result in cmds:
-                cmds[new_result]()
-            elif len(new_result) >= 5:
-                state.append(new_result)
-    except (KeyboardInterrupt, EOFError):
-        return state
+    @line_magic
+    def best_options(self, limit):
+        opts = self._cur_options()
+        limit = int(limit) if limit else self.limit
+        return best_next_score(opts, *_simple_words(*self.guesses), position_scores=construct_position_freqs(opts))[-limit:]
+
+    @line_magic
+    def best_next_guesses(self, limit):
+        """Uses full word list to maximize information score, rather than limiting to words it 'could' be"""
+        opts = self._cur_options()
+        limit = int(limit) if limit else self.limit
+        return best_next_score(wl, *_simple_words(*self.guesses), position_scores=construct_position_freqs(opts))[-limit:]
+
+    @line_magic
+    def pop(self, line):
+        idea = self.guesses.pop()
+        if idea not in self.ideas:
+            self.ideas.append(idea)
+
+    @line_magic
+    def scores(self, _):
+        return construct_position_freqs(self._cur_options())
+
+
+def load_ipython_extension(ipython):  # magic name
+    ipython.register_magics(IpythonSolver)
 
 
 def main():
