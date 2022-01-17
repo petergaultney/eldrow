@@ -6,7 +6,7 @@ import string
 import json
 from collections import defaultdict
 from itertools import combinations
-from typing import Iterator, Tuple, List, Sequence, Dict
+from typing import Iterator, Tuple, List, Sequence, Dict, Set
 
 
 with open('5_letter_words.txt') as f:
@@ -145,7 +145,7 @@ def find_with_regexes(regexes: tuple, wl: list = five_letter_word_list):
             yield w
 
 
-def given(*guesses, n: int = 5) -> Tuple[dict, dict, str]:
+def given(*guesses, n: int = 5) -> Tuple[Dict[int, str], Dict[int, Set[str]], str]:
     """Format:
 
     lowercase letters for incorrect guesses.
@@ -221,6 +221,32 @@ def answer(solution: str, guess: str) -> str:
     return ''.join(results)
 
 
+
+def colorize(*guesses: str):
+    green, yellow, gray = given(*guesses)
+    CGREEN  = '\33[32m'
+    CYELLOW = '\33[33m'
+    CEND    = '\33[0m'
+    colorized = list()
+    for guess in guesses:
+        color_guess = ''
+        for i, c in enumerate(_to_word(guess)):
+            if c == green.get(i):
+                color_guess += CGREEN
+                color_guess += c.upper()
+                color_guess += CEND
+            elif c in yellow.get(i, set()):
+                color_guess += CYELLOW
+                color_guess += c.upper()
+                color_guess += CEND
+            elif c in gray:
+                color_guess += c.upper()
+            else:
+                assert False, (c, i)
+        colorized.append(color_guess)
+    return colorized
+
+
 from IPython.core.magic import Magics, magics_class, line_magic
 
 
@@ -263,10 +289,8 @@ class IpythonSolver(Magics):
 
     @line_magic
     def p(self, _):
-        CGREEN  = '\33[32m'
-        CYELLOW = '\33[33m'
-        for g in self._guesses:
-            pass
+        for colorized in colorize(*self._guesses):
+            print(colorized)
 
     @line_magic
     def words(self, _):
@@ -286,6 +310,7 @@ class IpythonSolver(Magics):
             line = self.format(line)
         self._guesses.append(line)
         print(f'# options: {len(self._cur_options())}')
+        self.p()
         return self._guesses
 
     @line_magic
