@@ -121,6 +121,17 @@ def _remove_solved(position_scores: PositionScores) -> PositionScores:
     return {pos: (val if len(val) > 1 else dict()) for pos, val in position_scores.items()}
 
 
+def _replace_solved_with_average_totals(position_scores: PositionScores) -> PositionScores:
+    avg_unsolved_total = defaultdict(int)
+    solved_letters = {list(letters.keys())[0] for _, letters in position_scores.items() if len(letters) == 1}
+    for pos, scores in position_scores.items():
+        if len(scores) > 1:
+            for letter, score in scores.items():
+                if letter not in solved_letters:
+                    avg_unsolved_total[letter] += score / len(position_scores)
+    return {pos: (scores if len(scores) > 1 else dict(avg_unsolved_total)) for pos, scores in position_scores.items()}
+
+
 def solver_regexes(green: dict, yellow: dict, gray: set, n: int = 5) -> Tuple[str, ...]:
     yellow_overrides_gray = set(chain(*yellow.values()))
     # if a character appeared gray, that might be because it was in a
@@ -330,7 +341,10 @@ class IpythonSolver(Magics):
 
     @line_magic
     def info(self, words):
-        return score_words(*words.split(), position_scores=_remove_solved(construct_position_freqs(self._cur_options())))
+        return score_words(
+            *words.split(),
+            position_scores=_replace_solved_with_average_totals(construct_position_freqs(self._cur_options())),
+        )
 
     @line_magic
     def guesses(self, line):
@@ -385,7 +399,7 @@ class IpythonSolver(Magics):
         return best_next_score(
             five_letter_word_list,
             *_simple_words(*self._guesses),
-            position_scores=_remove_solved(construct_position_freqs(opts))
+            position_scores=_replace_solved_with_average_totals(construct_position_freqs(opts))
         )[-limit:]
 
     @line_magic
