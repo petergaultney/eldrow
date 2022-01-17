@@ -156,36 +156,37 @@ def given(*guesses, n: int = 5) -> Tuple[Dict[int, str], Dict[int, Set[str]], Se
 
     lowercase letters for incorrect guesses.
 
-    uppercase letters for yellow guesses.
+    uppercase letters for correct (green) guesses.
 
-    correct (green) guesses are letters encased in parentheses.
+    yellow (letter is present, but not the correct position) guesses
+    are letters encased in parentheses.
 
     Example:
 
-    If the correct answer is BROWN, (B)ORo(N) would be the guess representation for 'boron'.
+    If the correct answer is BROWN, B(OR)oN would be the guess representation for 'boron'.
     """
     green = dict()
     yellow = dict()
     gray = set()
     for guess in guesses:
-        is_green = False
+        is_yellow = False
         i = 0
         for c in guess:
             if c == '(':
-                assert not is_green, guess
-                is_green = True
+                assert not is_yellow, guess
+                is_yellow = True
             elif c == ')':
-                assert is_green, guess
-                is_green = False
+                assert is_yellow, guess
+                is_yellow = False
             else:
-                if is_green:
-                    assert c in string.ascii_letters
-                    assert green.get(i) in (c.lower(), None)
-                    green[i] = c.lower()
-                elif c in string.ascii_uppercase: # yellow
+                if is_yellow:
                     if i not in yellow:
                         yellow[i] = set()
                     yellow[i].add(c.lower())
+                elif c in string.ascii_uppercase: # yellow
+                    assert c in string.ascii_letters
+                    assert green.get(i) in (c.lower(), None)
+                    green[i] = c.lower()
                 else:
                     gray.add(c)
                 i += 1
@@ -210,7 +211,6 @@ def answer(solution: str, guess: str) -> str:
         return guess
 
     guess = _to_word(guess)
-    results = list()
     char_counts = defaultdict(int)
     for c in solution:
         char_counts[c] += 1
@@ -219,25 +219,34 @@ def answer(solution: str, guess: str) -> str:
         if guess_c == c:
             char_counts[c] -= 1
 
-    is_green = False
-    for i, c in enumerate(solution):
-        guess_c = _to_word(guess)[i]
+    results = list()
+    is_yellow = False
+
+    def end_yellow():
+        nonlocal is_yellow
+        if is_yellow:
+            results.append(')')
+            is_yellow = False
+
+    def start_yellow():
+        nonlocal is_yellow
+        if not is_yellow:
+            results.append('(')
+            is_yellow = True
+
+    for guess_c, c in zip(guess, solution):
         if guess_c == c:
-            if not is_green:
-                results.append('(')
-                is_green = True
+            end_yellow()
             results.append(c.upper())
+        elif char_counts.get(guess_c):
+            start_yellow()
+            results.append(guess_c.upper())
+            char_counts[guess_c] -= 1
         else:
-            if is_green:
-                results.append(')')
-                is_green = False
-            if char_counts.get(guess_c):
-                results.append(guess_c.upper())
-                char_counts[guess_c] -= 1
-            else:
-                results.append(guess_c.lower())
-    if is_green:
-        results.append(')')
+            end_yellow()
+            results.append(guess_c.lower())
+
+    end_yellow()
     return ''.join(results)
 
 
@@ -307,10 +316,6 @@ class IpythonSolver(Magics):
             self._solution = getpass.getpass('Solution? ')
 
     @line_magic
-    def guesses(self, line):
-        return self._guesses
-
-    @line_magic
     def p(self, _):
         for colorized in colorize(*self._guesses):
             print(colorized)
@@ -328,19 +333,23 @@ class IpythonSolver(Magics):
         return score_words(*words.split(), position_scores=_remove_solved(construct_position_freqs(self._cur_options())))
 
     @line_magic
-    def guess(self, line):
-        if self._solution:
-            line = self.format(line)
-        self._guesses.append(line)
+    def guesses(self, line):
         print(f'# options: {len(self._cur_options())}')
         self.p(None)
         return self._guesses
 
     @line_magic
+    def guess(self, line):
+        if self._solution:
+            line = self.format(line)
+        self._guesses.append(line)
+        return self.guesses(None)
+
+    @line_magic
     def g(self, line):
         if line:
             return self.guess(line)
-        return self._guesses
+        return self.guesses(None)
 
     @line_magic
     def ideas(self, _):
@@ -402,6 +411,10 @@ class IpythonSolver(Magics):
 def load_ipython_extension(ipython):  # magic name
     ipython.register_magics(IpythonSolver)
 
+try:
+    get_ipython().run_line_magic('load_ext', 'eldrow')
+except:
+    pass
 
 def main():
     pass
