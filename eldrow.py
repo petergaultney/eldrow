@@ -226,6 +226,7 @@ def colorize(*guesses: str):
     green, yellow, gray = given(*guesses)
     CGREEN  = '\33[32m'
     CYELLOW = '\33[33m'
+    CRED    = '\33[31m'
     CEND    = '\33[0m'
     colorized = list()
     for guess in guesses:
@@ -240,9 +241,11 @@ def colorize(*guesses: str):
                 color_guess += c.upper()
                 color_guess += CEND
             elif c in gray:
-                color_guess += c.upper()
+                color_guess += CRED
+                color_guess += c.lower()
+                color_guess += CEND
             else:
-                assert False, (c, i)
+                assert False, (guess, c, i)
         colorized.append(color_guess)
     return colorized
 
@@ -310,7 +313,7 @@ class IpythonSolver(Magics):
             line = self.format(line)
         self._guesses.append(line)
         print(f'# options: {len(self._cur_options())}')
-        self.p()
+        self.p(None)
         return self._guesses
 
     @line_magic
