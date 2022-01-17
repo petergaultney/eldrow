@@ -5,7 +5,7 @@ import re
 import string
 import json
 from collections import defaultdict
-from itertools import combinations
+from itertools import combinations, chain
 from typing import Iterator, Tuple, List, Sequence, Dict, Set
 
 
@@ -96,10 +96,12 @@ def score_words(*words: str, position_scores: dict = position_scores) -> float:
     return round(score, 3)
 
 
-def yield_tuple_scores(word_list: list = five_letter_word_list, n: int = 2) -> Iterator[Tuple[int, str, str]]:
+def high_score_tuples(word_list: list = five_letter_word_list, n: int = 2) -> List[Tuple[int, str, str]]:
+    scored = list()
     for words in combinations(word_list, n):
         score = score_words(*words)
-        yield (score, *words)
+        scored.append((score, *words))
+    return sorted(scored)
 
 
 def best_next_score(word_list: Sequence[str], *starting_words, position_scores=position_scores) -> List[Tuple[int, str]]:
@@ -120,15 +122,19 @@ def _remove_solved(position_scores: PositionScores) -> PositionScores:
 
 
 def solver_regexes(green: dict, yellow: dict, gray: set, n: int = 5) -> Tuple[str, ...]:
+    yellow_overrides_gray = set(chain(*yellow.values()))
+    # if a character appeared gray, that might be because it was in a
+    # guess with two of those same character, and only one appears in
+    # the word.
     def pos(i):
         if i in green:
             return green[i]
         char_regex = '['
         for c in string.ascii_lowercase:
-            if c in gray:
-                continue
             not_here = yellow.get(i, list())
             if c in not_here:
+                continue
+            if c in gray and c not in yellow_overrides_gray:
                 continue
             char_regex += c
         char_regex += ']'
@@ -145,38 +151,43 @@ def find_with_regexes(regexes: tuple, wl: list = five_letter_word_list):
             yield w
 
 
-def given(*guesses, n: int = 5) -> Tuple[Dict[int, str], Dict[int, Set[str]], str]:
+def given(*guesses, n: int = 5) -> Tuple[Dict[int, str], Dict[int, Set[str]], Set[str]]:
     """Format:
 
     lowercase letters for incorrect guesses.
 
     uppercase letters for yellow guesses.
 
-    space followed by letter for correct (green) guesses.
+    correct (green) guesses are letters encased in parentheses.
+
+    Example:
+
+    If the correct answer is BROWN, (B)ORo(N) would be the guess representation for 'boron'.
     """
     green = dict()
     yellow = dict()
-    gray = ''
+    gray = set()
     for guess in guesses:
-        bare_guess = guess.replace(' ', '')
-        assert len(bare_guess) == n
         is_green = False
         i = 0
         for c in guess:
-            if is_green:
-                assert c != ' '
-                assert green.get(i) in (c.lower(), None)
-                green[i] = c.lower()
-                is_green = False
-            elif c in string.ascii_uppercase: # yellow
-                if i not in yellow:
-                    yellow[i] = set()
-                yellow[i].add(c.lower())
-            else:
-                gray += c
-            if c == ' ':
+            if c == '(':
+                assert not is_green, guess
                 is_green = True
+            elif c == ')':
+                assert is_green, guess
+                is_green = False
             else:
+                if is_green:
+                    assert c in string.ascii_letters
+                    assert green.get(i) in (c.lower(), None)
+                    green[i] = c.lower()
+                elif c in string.ascii_uppercase: # yellow
+                    if i not in yellow:
+                        yellow[i] = set()
+                    yellow[i].add(c.lower())
+                else:
+                    gray.add(c)
                 i += 1
     return green, yellow, gray
 
@@ -187,7 +198,7 @@ def options(regex_strs: Sequence[str]) -> list:
 
 
 def _to_word(guess: str) -> str:
-    return guess.replace(' ', '').lower()
+    return guess.replace('(', '').replace(')', '').lower()
 
 
 def _simple_words(*guesses) -> List[str]:
@@ -208,16 +219,25 @@ def answer(solution: str, guess: str) -> str:
         if guess_c == c:
             char_counts[c] -= 1
 
+    is_green = False
     for i, c in enumerate(solution):
         guess_c = _to_word(guess)[i]
         if guess_c == c:
-            results.append(' ')
+            if not is_green:
+                results.append('(')
+                is_green = True
             results.append(c.upper())
-        elif char_counts.get(guess_c):
-            results.append(guess_c.upper())
-            char_counts[guess_c] -= 1
         else:
-            results.append(guess_c.lower())
+            if is_green:
+                results.append(')')
+                is_green = False
+            if char_counts.get(guess_c):
+                results.append(guess_c.upper())
+                char_counts[guess_c] -= 1
+            else:
+                results.append(guess_c.lower())
+    if is_green:
+        results.append(')')
     return ''.join(results)
 
 
