@@ -1,11 +1,21 @@
 # eldrow
 
-For now, try `env PYTHONSTARTUP=eldrow.py ipython`
+Run `env PYTHONSTARTUP=eldrow.py ipython`
 
-In the future I might add a CLI.
+Then, run `%load_ext eldrow`
 
+You now have various commands prefixed by `%`.
+
+Most useful will be:
+
+```
+%scores
+%g
+%options
+%best_info
+%best_options
+```
 
 ## TODO
 
-1.
-2. better input format
+1. better input format
