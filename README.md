@@ -19,3 +19,4 @@ Most useful will be:
 ## TODO
 
 1. better input format
+2. improve scoring to maximze letter discovery when positions are known
