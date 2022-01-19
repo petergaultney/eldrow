@@ -6,7 +6,7 @@ import string
 import json
 from collections import defaultdict
 from itertools import combinations, chain
-from typing import Iterator, Tuple, List, Sequence, Dict, Set
+from typing import Iterator, Tuple, List, Sequence, Dict, Set, Callable
 
 
 with open('5_letter_words.txt') as f:
@@ -68,43 +68,70 @@ pos = position_scores
 
 very_unusual_letters = 'vzjxq'
 
-def score_words(*words: str, position_scores: dict = position_scores) -> float:
+
+def score_words(position_scores: dict = position_scores) -> Callable[[Tuple[str, ...]], float]:
     """Scores words based on total positional score across the word list."""
-    score = 0
-    scored_in_position = defaultdict(lambda: defaultdict(lambda: False))
+    def _score_words(*words: str) -> float:
+        score = 0
+        scored_in_position = defaultdict(lambda: defaultdict(lambda: False))
 
-    def score_word(w):
-        word_score = 0
-        for i, c in enumerate(w):
-            if i not in position_scores:
-                break
-            pos = position_scores[i]
-            if c not in pos:
-                # letter literally not an option in this location.
-                # it gets no score here, and will be fully scored
-                # elsewhere.
-                continue
-            pos_score = pos[c]
-            if scored_in_position[i][c]:
-                continue
-            scored_in_position[i][c] = True
-            word_score += pos_score
-        return word_score
+        def score_word(w):
+            word_score = 0
+            for i, c in enumerate(w):
+                if i not in position_scores:
+                    break
+                pos = position_scores[i]
+                if c not in pos:
+                    # letter literally not an option in this location.
+                    # it gets no score here, and will be fully scored
+                    # elsewhere.
+                    continue
+                pos_score = pos[c]
+                if scored_in_position[i][c]:
+                    continue
+                scored_in_position[i][c] = True
+                word_score += pos_score
+            return word_score
 
-    for w in words:
-        score += score_word(w)
-    return round(score, 3)
+        return round(sum(score_word(w) for w in words), 3)
+
+    return _score_words
+
+
+def score_for_novelty(position_scores: dict = position_scores) -> Callable[[Tuple[str, ...]], float]:
+    """Scores words based on novelty of each character.
+
+    In other words, we want as many different characters as possible,
+    with as high a score in each position as possible.
+    """
+    def _score_for_novelty(*words: str) -> float:
+        score = 0.0
+        characters_scored = set()
+
+        def score_word(word: str) -> float:
+            wscore = 0.0
+            sorted_pos_scores = sorted([(position_scores[i].get(c, 0.0), i, c) for i, c in enumerate(word)], reverse=True)
+            for pos_score, i, c in sorted_pos_scores:
+                if c in characters_scored:
+                    continue
+                characters_scored.add(c)
+                wscore += pos_score
+            return wscore
+
+        return round(sum(score_word(word) for word in words), 3)
+
+    return _score_for_novelty
 
 
 def high_score_tuples(word_list: list = five_letter_word_list, n: int = 2) -> List[Tuple[int, str, str]]:
     scored = list()
     for words in combinations(word_list, n):
-        score = score_words(*words)
+        score = score_for_novelty()(*words)
         scored.append((score, *words))
     return sorted(scored)
 
 
-def best_next_score(word_list: Sequence[str], *starting_words, position_scores=position_scores) -> List[Tuple[int, str]]:
+def best_next_score(word_list: Sequence[str], *starting_words, scorer = score_words()) -> List[Tuple[int, str]]:
     """Determines a best next word score without regard to solving.
 
     Mostly useful for playing around with different combinations of
@@ -112,8 +139,7 @@ def best_next_score(word_list: Sequence[str], *starting_words, position_scores=p
     """
     best_words = list()
     for w_next in word_list:
-        score = score_words(*starting_words, w_next, position_scores=position_scores)
-        best_words.append((score, w_next))
+        best_words.append((scorer(*starting_words, w_next), w_next))
     return sorted(best_words)
 
 
@@ -133,27 +159,26 @@ def _replace_solved_with_average_totals(position_scores: PositionScores) -> Posi
 
 
 def solver_regexes(green: dict, yellow: dict, gray: set, n: int = 5) -> Tuple[str, ...]:
-    yellow_overrides_gray = set(chain(*yellow.values()))
-    # if a character appeared gray, that might be because it was in a
-    # guess with two of those same character, and only one appears in
-    # the word.
+    yellow_chars = set(chain(*yellow.values()))
+    all_known = len(green) + len(yellow_chars) == n
+    # if the number of green chars plus the number of yellow chars is N, then we
+    # don't need to accept anything other than those chars.
     def pos(i):
         if i in green:
             return green[i]
         char_regex = '['
-        for c in string.ascii_lowercase:
-            not_here = yellow.get(i, list())
-            if c in not_here:
+        for c in (string.ascii_lowercase if not all_known else yellow_chars):
+            if c in yellow.get(i, list()):
                 continue
-            if c in gray and c not in yellow_overrides_gray:
+            if c in gray and c not in yellow_chars:
+                # if a character appeared gray, that might be because
+                # it was in a guess with two of those same character,
+                # and only one appears in the word.
                 continue
             char_regex += c
         char_regex += ']'
         return char_regex
-    yellow_chars = set()
-    for chars in yellow.values():
-        yellow_chars |= chars
-    return (''.join(pos(i) for i in range(n)),) + tuple(c for c in yellow_chars)
+    return (''.join(pos(i) for i in range(n)),) + tuple(c for c in (yellow_chars if not all_known else []))
 
 
 def find_with_regexes(regexes: tuple, wl: list = five_letter_word_list):
@@ -261,7 +286,6 @@ def answer(solution: str, guess: str) -> str:
     return ''.join(results)
 
 
-
 def colorize(*guesses: str):
     green, yellow, gray = given(*guesses)
     CGREEN  = '\33[32m'
@@ -302,17 +326,25 @@ class IpythonSolver(Magics):
         self.ideas = list()
         self.limit = 30
         self._solution = ''
+        self._ignored = set()
 
-    def _cur_options(self):
-        return options(solver_regexes(*given(*self._guesses)))
+    def _cur_options(self) -> List[str]:
+        return [w for w in options(solver_regexes(*given(*self._guesses))) if w not in self._ignored]
 
     def format(self, guess):
         assert self._solution
         return answer(self._solution, guess) or guess
 
     @line_magic
+    def ignore(self, words):
+        self._ignored |= set(words.split())
+
+    @line_magic
     def limit(self, line):
-        self.limit = int(line)
+        if line:
+            self.limit = int(line)
+        else:
+            return self.limit
 
     @line_magic
     def solution(self, line):
@@ -337,14 +369,13 @@ class IpythonSolver(Magics):
 
     @line_magic
     def score(self, words):
-        return score_words(*words.split(), position_scores=construct_position_freqs(self._cur_options()))
+        return score_words(construct_position_freqs(self._cur_options()))(*words.split())
 
     @line_magic
     def info(self, words):
-        return score_words(
-            *words.split(),
-            position_scores=_replace_solved_with_average_totals(construct_position_freqs(self._cur_options())),
-        )
+        return score_for_novelty(
+            _replace_solved_with_average_totals(construct_position_freqs(self._cur_options()))
+        )(*words.split())
 
     @line_magic
     def guesses(self, line):
@@ -362,7 +393,9 @@ class IpythonSolver(Magics):
     @line_magic
     def g(self, line):
         if line:
-            return self.guess(line)
+            if line in five_letter_word_list:
+                return self.guess(line)
+            return None
         return self.guesses(None)
 
     @line_magic
@@ -388,7 +421,7 @@ class IpythonSolver(Magics):
         return best_next_score(
             remaining_words,
             *_simple_words(*self._guesses),
-            position_scores=construct_position_freqs(remaining_words),
+            scorer=score_words(construct_position_freqs(remaining_words)),
         )[-limit:]
 
     @line_magic
@@ -399,7 +432,7 @@ class IpythonSolver(Magics):
         return best_next_score(
             five_letter_word_list,
             *_simple_words(*self._guesses),
-            position_scores=_replace_solved_with_average_totals(construct_position_freqs(opts))
+            scorer=score_for_novelty(_replace_solved_with_average_totals(construct_position_freqs(opts))),
         )[-limit:]
 
     @line_magic
