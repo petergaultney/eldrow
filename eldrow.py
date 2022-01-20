@@ -385,18 +385,17 @@ class IpythonSolver(Magics):
 
     @line_magic
     def guess(self, line):
-        if self._solution:
-            line = self.format(line)
-        self._guesses.append(line)
+        if line:
+            if self._solution:
+                line = self.format(line)
+            if _to_word(line) not in five_letter_word_list:
+                return None
+            self._guesses.append(line)
         return self.guesses(None)
 
     @line_magic
     def g(self, line):
-        if line:
-            if line in five_letter_word_list:
-                return self.guess(line)
-            return None
-        return self.guesses(None)
+        return self.guess(line)
 
     @line_magic
     def ideas(self, _):
@@ -442,7 +441,7 @@ class IpythonSolver(Magics):
             idea = self._guesses.pop()
             if idea not in self.ideas:
                 self.ideas.append(idea)
-        print(self._guesses)
+        return self.g(None)
 
     @line_magic
     def scores(self, _):
