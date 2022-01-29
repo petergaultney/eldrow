@@ -29,6 +29,36 @@ def test_constraint():
     assert elims[4] == set('bd')
 
 
+def test_gray_after_yellow():
+    elims, cc = constraint('(P)pd')
+    assert elims[0] == set('pd')
+    assert elims[1] == set('pd')
+    assert elims[2] == set('d')
+
+
+def test_gray_after_green():
+    elims, cc = constraint('Ppd')
+    assert ALPHA - elims[0] == set('p')
+    assert elims[1] == set('pd')
+    assert elims[2] == set('pd')
+
+
+def test_gray_before_green():
+    elims, cc = constraint('pPd')
+    assert elims[0] == set('pd')
+    assert ALPHA - elims[1] == set('p')
+    assert elims[2] == set('pd')
+
+
+def test_yellow_before_green_before_gray():
+    elims, cc = constraint('(B)Btb')
+    assert elims[0] == set('bt')
+    assert ALPHA - elims[1] == set('b')
+    assert elims[2] == set('t')
+    assert elims[3] == set('bt')
+    assert cc['b'] == 2
+
+
 def test_merge_constraints():
     elims, cc = merge_constraints(constraint('S(ES)an'), constraint('S(LO)wS'))
     assert cc['s'] == 2
@@ -62,5 +92,12 @@ def test_given2():
     p, c = given2("S(ES)an", "S(LO)wS", "S(S)bsd")  # this addition tells us there can only be two 's'
     assert p == {0: {'s'}, 1: {'o'}, 2: set('el'), 3: set('eol'), 4: {'s'}}, p
 
+
+def test_can_matrix_solve_for_location_of_a_and_then_l():
     p, c = given2('s(LA)t(E)', 'p(A)vED')
     assert p == {0: {'a'}, 1: ALPHA - set('alpstv'), 2: {'l'}, 3: {'e'}, 4: {'d'}}, p
+
+
+def test_can_matrix_solve_for_location_of_second_b():
+    p, c = given2('(B)Btb')
+    assert p[2] == set('b')

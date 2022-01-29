@@ -156,15 +156,10 @@ def regexes2(positions, counts):
         return '[' + ''.join(positions[i]) + ']'
     return (''.join((pos(i) for i in positions)), *tuple(counts))
 
-# TODO fix given/solver_regexes correspondence.
-# green/yellow/gray is not sufficient to represent possibilities.
-# instead, we must provide a position-by-position 'allowable chars' string/set.
-# Green eliminates all other possibilities.
-# Yellow eliminates the current char for the current position, but increments the required count by 1.
-# Gray eliminates the current char for all positions, _unless_ the char already appears as yellow or green
-# in the existing guess, in which case it eliminates it only for the current position.
 
-Constraint = ty.Tuple[ty.Dict[int, ty.Set[str]], ty.Dict[str, int]]
+PositionEliminations = ty.Dict[int, ty.Set[str]]
+CharacterCount = ty.Dict[str, int]
+Constraint = ty.Tuple[PositionEliminations, CharacterCount]
 
 
 def parse(guess: str) -> ty.Iterator[ty.Tuple[str, str]]:
@@ -185,30 +180,42 @@ def parse(guess: str) -> ty.Iterator[ty.Tuple[str, str]]:
                 yield 'gray', c
 
 
-def constraint(guess: str) -> Constraint:
+def constraint(guess: str, alpha: ty.Set[str] = ALPHA) -> Constraint:
     n = len(_to_word(guess))
-    assert n == 5, "remove this if you start playing bigger words"
     position_eliminations = {i: set() for i in range(n)}
     char_counts = defaultdict(int)
 
     def eliminate(c, from_=set(range(n))):
         for i in from_:
-            position_eliminations[i].add(c)
-
-    def require(rc, i):
-        for c in string.ascii_lowercase:
-            if c != rc:
+            # never eliminate the last character for a position
+            if len(position_eliminations[i]) < len(alpha) - 1:
                 position_eliminations[i].add(c)
 
+    def require(rc, i):
+        position_eliminations[i] = alpha - {rc}
+
+    already_yellow = set()
     for i, (color, c) in enumerate(parse(guess)):
         if color == 'yellow':
             eliminate(c, {i})
             char_counts[c] += 1
+            already_yellow.add(c)
         elif color == 'green':
             require(c, i)
             char_counts[c] += 1
         else:
-            if c in char_counts:
+            # grays are complex.
+            # They mean "there are no more of this character in the word".
+            # In the absence of other information about the character,
+            # this means the character cannot appear anywhere in the word, i.e. the count is zero.
+            # However, if the character has already appeared in the word, this
+            # only means that the character must not appear more times.
+            # If any of the previous occurrence(s) were yellow,
+            # then we can only eliminate this specific position.
+            # If all other occurrences are green, then we can eliminate
+            # the character from consideration from all locations except where it is required.
+            assert color == 'gray', (guess, i, c, color)
+            if c in already_yellow:
                 eliminate(c, {i})
             else:
                 eliminate(c)
@@ -335,8 +342,11 @@ def answer(solution: str, guess: str) -> str:
 
     for guess_c, c in zip(guess, solution):
         if guess_c == c:
+            # correct! (green)
+            assert char_counts[guess_c] > 0
             end_yellow()
             results.append(c.upper())
+            char_counts[guess_c] -= 1
         elif char_counts.get(guess_c):
             start_yellow()
             results.append(guess_c.upper())
