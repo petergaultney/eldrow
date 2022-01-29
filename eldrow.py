@@ -5,7 +5,9 @@ import re
 import string
 import json
 import random
+import typing as ty
 from collections import defaultdict
+from copy import deepcopy
 from itertools import combinations, chain
 from typing import Iterator, Tuple, List, Sequence, Dict, Set, Callable
 
@@ -13,20 +15,17 @@ from typing import Iterator, Tuple, List, Sequence, Dict, Set, Callable
 with open('5_letter_words.txt') as f:
     five_letter_word_list = f.read().splitlines()
 
-with open('538.txt') as f:
+with open('sols.txt') as f:
     sols = f.read().splitlines()
 
 with open('dumb_words.txt') as f:
     dumb_words = f.read().splitlines()
 
-
 def _sort_dict_by_values(d):
     return {k: v for k, v in sorted(d.items(), key=lambda item: item[1])}
 
-
 def _xf_dict_vals(xf, d):
     return {k: xf(v) for k, v in d.items()}
-
 
 def _xf_dd_vals(xf, dd):
     def xf_d_vals(d):
@@ -57,6 +56,7 @@ position_scores = construct_position_freqs(five_letter_word_list)
 # some shorthand
 wl = five_letter_word_list
 pos = position_scores
+ALPHA = set(string.ascii_lowercase)
 
 
 __very_unusual_letters = 'vzjxq'
@@ -151,34 +151,10 @@ def _replace_solved_with_average_totals(position_scores: PositionScores) -> Posi
     return {pos: (scores if len(scores) > 1 else dict(avg_unsolved_total)) for pos, scores in position_scores.items()}
 
 
-def solver_regexes(green: dict, yellow: dict, gray: set, n: int = 5) -> Tuple[str, ...]:
-    yellow_chars = set(chain(*yellow.values()))
-    all_known = len(green) + len(yellow_chars) == n
-    # if the number of green chars plus the number of yellow chars is N, then we
-    # don't need to accept anything other than those chars.
+def regexes2(positions, counts):
     def pos(i):
-        if i in green:
-            return green[i]
-        char_regex = '['
-        for c in (string.ascii_lowercase if not all_known else yellow_chars):
-            if c in yellow.get(i, list()):
-                continue
-            if c in gray and c not in yellow_chars:
-                # if a character appeared gray, that might be because
-                # it was in a guess with two of those same character,
-                # and only one appears in the word.
-                continue
-            char_regex += c
-        char_regex += ']'
-        return char_regex
-    return (''.join(pos(i) for i in range(n)),) + tuple(c for c in (yellow_chars if not all_known else []))
-
-
-def find_with_regexes(regexes: tuple, wl: list = five_letter_word_list):
-    for w in wl:
-        if all(regex.search(w) for regex in regexes):
-            yield w
-
+        return '[' + ''.join(positions[i]) + ']'
+    return (''.join((pos(i) for i in positions)), *tuple(counts))
 
 # TODO fix given/solver_regexes correspondence.
 # green/yellow/gray is not sufficient to represent possibilities.
@@ -188,7 +164,106 @@ def find_with_regexes(regexes: tuple, wl: list = five_letter_word_list):
 # Gray eliminates the current char for all positions, _unless_ the char already appears as yellow or green
 # in the existing guess, in which case it eliminates it only for the current position.
 
-def given(*guesses, n: int = 5) -> Tuple[Dict[int, str], Dict[int, Set[str]], Set[str]]:
+Constraint = ty.Tuple[ty.Dict[int, ty.Set[str]], ty.Dict[str, int]]
+
+
+def parse(guess: str) -> ty.Iterator[ty.Tuple[str, str]]:
+    is_yellow = False
+    for c in guess:
+        if c == '(':
+            assert not is_yellow, guess
+            is_yellow = True
+        elif c == ')':
+            assert is_yellow, guess
+            is_yellow = False
+        else:
+            if is_yellow:
+                yield 'yellow', c.lower()
+            elif c in string.ascii_uppercase:
+                yield 'green', c.lower()
+            else:
+                yield 'gray', c
+
+
+def constraint(guess: str) -> Constraint:
+    n = len(_to_word(guess))
+    assert n == 5, "remove this if you start playing bigger words"
+    position_eliminations = {i: set() for i in range(n)}
+    char_counts = defaultdict(int)
+
+    def eliminate(c, from_=set(range(n))):
+        for i in from_:
+            position_eliminations[i].add(c)
+
+    def require(rc, i):
+        for c in string.ascii_lowercase:
+            if c != rc:
+                position_eliminations[i].add(c)
+
+    for i, (color, c) in enumerate(parse(guess)):
+        if color == 'yellow':
+            eliminate(c, {i})
+            char_counts[c] += 1
+        elif color == 'green':
+            require(c, i)
+            char_counts[c] += 1
+        else:
+            if c in char_counts:
+                eliminate(c, {i})
+            else:
+                eliminate(c)
+    return position_eliminations, dict(char_counts)
+
+
+def _merge_constraints(ca: Constraint, cb: Constraint) -> Constraint:
+    """Constraints must be for strings of equal length"""
+    elims_a, cc_a = ca
+    elims_b, cc_b = cb
+    return {
+        i: elims_a[i] | elims_b[i]
+        for i in range(len(elims_a))
+    }, {
+        c: max(cc_a.get(c, 0), cc_b.get(c, 0)) for c in list((*cc_a.keys(), *cc_b.keys()))
+    }
+
+
+def merge_constraints(*constraints: Constraint) -> Constraint:
+    merged = None
+    for constraint in constraints:
+        merged = constraint if merged is None else _merge_constraints(merged, constraint)
+    assert merged, "Cannot merge zero constraints"
+    return merged
+
+
+def matrix_eliminate(alpha: ty.Set[str], constraint: Constraint) -> Constraint:
+    # at this point, it's possible to use position-by-position process
+    # of elimination.  in other words, if a character is known to be
+    # required N times but is eliminated in all but N locations, then
+    # all other characters are eliminated from those N locations.
+    #
+    # Not only must this be run for every character, it must also
+    # be re-run with all non-finalized characters every time it results in a change.
+    def run(constraint: Constraint) -> Constraint:
+        pos_elims, char_counts = constraint
+        for char, count in char_counts.items():
+            remaining_positions_allowed = set(pos_elims)
+            for pos, eliminations in pos_elims.items():
+                if char in eliminations:
+                    remaining_positions_allowed -= {pos}
+            if len(remaining_positions_allowed) == count:
+                pos_elims = deepcopy(pos_elims)
+                for pos in remaining_positions_allowed:
+                    pos_elims[pos] = alpha - {char}
+                return pos_elims, char_counts
+        return pos_elims, char_counts
+    while True:
+        new_constraint = run(constraint)
+        if new_constraint == constraint:
+            return constraint
+        constraint = new_constraint
+
+
+def given2(*guesses, alpha: ty.Set[str] = ALPHA):
     """Format:
 
     lowercase letters for incorrect guesses.
@@ -196,47 +271,28 @@ def given(*guesses, n: int = 5) -> Tuple[Dict[int, str], Dict[int, Set[str]], Se
     uppercase letters for correct (green) guesses.
 
     yellow (letter is present, but not the correct position) guesses
-    are letters encased in parentheses.
+    are letters encased in parentheses. Capitalization is ignored.
 
     Example:
 
     If the correct answer is BROWN, B(OR)oN would be the guess representation for 'boron'.
     """
-    green = dict()
-    yellow = dict()
-    gray = set()
-    min_char_count = defaultdict(int)
-
-    for guess in guesses:
-        is_yellow = False
-        i = 0
-        guess_min_char_count = defaultdict(int)
-        for c in guess:
-            if c == '(':
-                assert not is_yellow, guess
-                is_yellow = True
-            elif c == ')':
-                assert is_yellow, guess
-                is_yellow = False
-            else:
-                if is_yellow:
-                    c = c.lower()
-                    guess_min_char_count[c] += 1
-                    # chars_onto_not_green[c].add(i)
-                    if i not in yellow:
-                        yellow[i] = set()
-                    yellow[i].add(c)
-                elif c in string.ascii_uppercase: # green
-                    guess_min_char_count[c] += 1
-                    assert green.get(i) in (c.lower(), None)
-                    green[i] = c.lower()
-                else:
-                    gray.add(c)
-                i += 1
-    return green, yellow, gray
+    elims, char_counts = merge_constraints(*[constraint(guess) for guess in guesses])
+    ## total known characters    == number of characters per string
+    if sum(char_counts.values()) == len(elims):
+        # then any char not appearing in char_counts must also be eliminated
+        for eliminated in elims.values():
+            eliminated |= (alpha - set(char_counts))
+    elims, char_counts = matrix_eliminate(alpha, (elims, char_counts))
+    return {i: ALPHA - e for i, e in elims.items()}, char_counts
 
 
-def options(regex_strs: Sequence[str]) -> list:
+def options(regex_strs: Sequence[str], wl: list = five_letter_word_list) -> list:
+    def find_with_regexes(regexes: tuple):
+        for w in wl:
+            if all(regex.search(w) for regex in regexes):
+                yield w
+
     regexes = tuple(re.compile(regex_str) for regex_str in regex_strs)
     return list(find_with_regexes(regexes))
 
@@ -294,31 +350,30 @@ def answer(solution: str, guess: str) -> str:
 
 
 def colorize(*guesses: str):
-    green, yellow, gray = given(*guesses)
     CGREEN  = '\33[32m'
     CYELLOW = '\33[33m'
     CRED    = '\33[31m'
     CEND    = '\33[0m'
     colorized = list()
-    for guess in guesses:
+    def colorize_g(guess: str) -> str:
         color_guess = ''
-        for i, c in enumerate(_to_word(guess)):
-            if c == green.get(i):
+        for color, c in parse(guess):
+            if color == 'green':
                 color_guess += CGREEN
                 color_guess += c.upper()
                 color_guess += CEND
-            elif c in yellow.get(i, set()):
+            elif color == 'yellow':
                 color_guess += CYELLOW
-                color_guess += c.upper()
+                color_guess += c
                 color_guess += CEND
-            elif c in gray:
+            elif color == 'gray':
                 color_guess += CRED
                 color_guess += c.lower()
                 color_guess += CEND
             else:
-                assert False, (guess, c, i)
-        colorized.append(color_guess)
-    return colorized
+                assert False, (guess, c, color)
+        return color_guess
+    return [colorize_g(guess) for guess in guesses]
 
 
 from IPython.core.magic import Magics, magics_class, line_magic
@@ -331,9 +386,28 @@ class IpythonSolver(Magics):
         super(IpythonSolver, self).__init__(shell)
         self.limit = 30
         self.reset(None)
+        self.wl = five_letter_word_list
+
+    @line_magic
+    def word_list(self, _):
+        if self.wl is five_letter_word_list:
+            self.wl = sols
+            print('Switched to solutions - cheater...')
+        else:
+            self.wl = five_letter_word_list
+            print('Switched to full word list')
+        return self.guesses(_)
+
+    @line_magic
+    def wl(self, _):
+        self.word_list(_)
+
+    @line_magic
+    def possibilities(self, _):
+        return given2(*self._guesses)
 
     def _cur_options(self) -> List[str]:
-        return [w for w in options(solver_regexes(*given(*self._guesses))) if w not in self._ignored]
+        return [w for w in options(regexes2(*given2(*self._guesses)), wl=self.wl) if w not in self._ignored]
 
     def format(self, guess):
         assert self._solution
@@ -388,7 +462,7 @@ class IpythonSolver(Magics):
 
     @line_magic
     def guesses(self, _):
-        print(f'# options: {len(self._cur_options())}, known: {len(self.known())}')
+        print(f'# options: {len(self._cur_options())}, input options: {len(self.input_options())}')
         self.p(None)
         return self._guesses
 
@@ -403,20 +477,27 @@ class IpythonSolver(Magics):
         return self.guesses(None)
 
     @line_magic
+    def letters(self, _):
+        pos_allowed, _ = given2(*self._guesses)
+        return ''.join(sorted({c.upper() for allowed in pos_allowed.values() for c in allowed}))
+
+    @line_magic
     def g(self, line):
         return self.guess(line)
 
-    def known(self):
+    def input_options(self):
         opts = set(self._cur_options())
-        return [k for k in self._known_options if k in opts]
+        return sorted([k for k in self._input_options if k in opts])
 
     @line_magic
-    def k(self, line):
-        if line not in self._cur_options():
-            return
-        self._known_options.add(line)
+    def o(self, line):
+        """Input an option that you have considered."""
+        for word in line.split():
+            if line not in self._cur_options():
+                print(f'{line} not an option')
+            self._input_options.add(line)
         self.guesses(None)
-        return self.known()
+        return self.input_options()
 
     @line_magic
     def ideas(self, _):
@@ -473,7 +554,7 @@ class IpythonSolver(Magics):
         self._guesses = list()
         self.ideas = list()
         self._solution = ''
-        self._known_options = set()
+        self._input_options = set()
         self._ignored = set()
 
 
