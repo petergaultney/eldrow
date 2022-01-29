@@ -4,6 +4,7 @@ import argparse
 import re
 import string
 import json
+import random
 from collections import defaultdict
 from itertools import combinations, chain
 from typing import Iterator, Tuple, List, Sequence, Dict, Set, Callable
@@ -12,13 +13,11 @@ from typing import Iterator, Tuple, List, Sequence, Dict, Set, Callable
 with open('5_letter_words.txt') as f:
     five_letter_word_list = f.read().splitlines()
 
+with open('538.txt') as f:
+    sols = f.read().splitlines()
+
 with open('dumb_words.txt') as f:
     dumb_words = f.read().splitlines()
-
-with open('counts.json') as f:
-    counts = json.loads(f.read())
-
-total_counts = counts['total_counts']
 
 
 def _sort_dict_by_values(d):
@@ -55,18 +54,12 @@ def construct_position_freqs(word_list: List[str], decimal_points=5) -> Position
 
 position_scores = construct_position_freqs(five_letter_word_list)
 
-with open('best_pairs.json') as f:
-    # this represents significant computation (on the order of several minutes)
-    best_pairs = json.loads(f.read())
-
-
 # some shorthand
 wl = five_letter_word_list
-tc = total_counts
 pos = position_scores
 
 
-very_unusual_letters = 'vzjxq'
+__very_unusual_letters = 'vzjxq'
 
 
 def score_words(position_scores: dict = position_scores) -> Callable[[Tuple[str, ...]], float]:
@@ -187,6 +180,14 @@ def find_with_regexes(regexes: tuple, wl: list = five_letter_word_list):
             yield w
 
 
+# TODO fix given/solver_regexes correspondence.
+# green/yellow/gray is not sufficient to represent possibilities.
+# instead, we must provide a position-by-position 'allowable chars' string/set.
+# Green eliminates all other possibilities.
+# Yellow eliminates the current char for the current position, but increments the required count by 1.
+# Gray eliminates the current char for all positions, _unless_ the char already appears as yellow or green
+# in the existing guess, in which case it eliminates it only for the current position.
+
 def given(*guesses, n: int = 5) -> Tuple[Dict[int, str], Dict[int, Set[str]], Set[str]]:
     """Format:
 
@@ -204,9 +205,12 @@ def given(*guesses, n: int = 5) -> Tuple[Dict[int, str], Dict[int, Set[str]], Se
     green = dict()
     yellow = dict()
     gray = set()
+    min_char_count = defaultdict(int)
+
     for guess in guesses:
         is_yellow = False
         i = 0
+        guess_min_char_count = defaultdict(int)
         for c in guess:
             if c == '(':
                 assert not is_yellow, guess
@@ -216,11 +220,14 @@ def given(*guesses, n: int = 5) -> Tuple[Dict[int, str], Dict[int, Set[str]], Se
                 is_yellow = False
             else:
                 if is_yellow:
+                    c = c.lower()
+                    guess_min_char_count[c] += 1
+                    # chars_onto_not_green[c].add(i)
                     if i not in yellow:
                         yellow[i] = set()
-                    yellow[i].add(c.lower())
-                elif c in string.ascii_uppercase: # yellow
-                    assert c in string.ascii_letters
+                    yellow[i].add(c)
+                elif c in string.ascii_uppercase: # green
+                    guess_min_char_count[c] += 1
                     assert green.get(i) in (c.lower(), None)
                     green[i] = c.lower()
                 else:
@@ -322,11 +329,8 @@ class IpythonSolver(Magics):
     def __init__(self, shell, guesses: List[str] = list()):
         # You must call the parent constructor
         super(IpythonSolver, self).__init__(shell)
-        self._guesses = guesses or list()
-        self.ideas = list()
         self.limit = 30
-        self._solution = ''
-        self._ignored = set()
+        self.reset(None)
 
     def _cur_options(self) -> List[str]:
         return [w for w in options(solver_regexes(*given(*self._guesses))) if w not in self._ignored]
@@ -347,12 +351,17 @@ class IpythonSolver(Magics):
             return self.limit
 
     @line_magic
+    def play(self, _):
+        self.solution(random.choice(sols))
+
+    @line_magic
     def solution(self, line):
         """For testing purposes. If you know the answer and want to manually
         try to 'discover' it using various tools, you can put the
         solution in, and that will make typing easier.
         """
         if line:
+            self.reset(None)
             self._solution = line
         else:
             import getpass
@@ -378,8 +387,8 @@ class IpythonSolver(Magics):
         )(*words.split())
 
     @line_magic
-    def guesses(self, line):
-        print(f'# options: {len(self._cur_options())}')
+    def guesses(self, _):
+        print(f'# options: {len(self._cur_options())}, known: {len(self.known())}')
         self.p(None)
         return self._guesses
 
@@ -396,6 +405,18 @@ class IpythonSolver(Magics):
     @line_magic
     def g(self, line):
         return self.guess(line)
+
+    def known(self):
+        opts = set(self._cur_options())
+        return [k for k in self._known_options if k in opts]
+
+    @line_magic
+    def k(self, line):
+        if line not in self._cur_options():
+            return
+        self._known_options.add(line)
+        self.guesses(None)
+        return self.known()
 
     @line_magic
     def ideas(self, _):
@@ -452,6 +473,8 @@ class IpythonSolver(Magics):
         self._guesses = list()
         self.ideas = list()
         self._solution = ''
+        self._known_options = set()
+        self._ignored = set()
 
 
 def load_ipython_extension(ipython):  # magic name
