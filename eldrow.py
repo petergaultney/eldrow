@@ -270,7 +270,7 @@ def matrix_eliminate(alpha: ty.Set[str], constraint: Constraint) -> Constraint:
         constraint = new_constraint
 
 
-def given2(*guesses, alpha: ty.Set[str] = ALPHA):
+def given2(*guesses, alpha: ty.Set[str] = ALPHA, empty_n: int = 5) -> Constraint:
     """Format:
 
     lowercase letters for incorrect guesses.
@@ -284,6 +284,8 @@ def given2(*guesses, alpha: ty.Set[str] = ALPHA):
 
     If the correct answer is BROWN, B(OR)oN would be the guess representation for 'boron'.
     """
+    if not guesses:
+        return {i: alpha - set() for i in range(empty_n)}, dict()
     elims, char_counts = merge_constraints(*[constraint(guess) for guess in guesses])
     ## total known characters    == number of characters per string
     if sum(char_counts.values()) == len(elims):
@@ -343,10 +345,8 @@ def answer(solution: str, guess: str) -> str:
     for guess_c, c in zip(guess, solution):
         if guess_c == c:
             # correct! (green)
-            assert char_counts[guess_c] > 0
             end_yellow()
             results.append(c.upper())
-            char_counts[guess_c] -= 1
         elif char_counts.get(guess_c):
             start_yellow()
             results.append(guess_c.upper())
@@ -390,13 +390,15 @@ from IPython.core.magic import Magics, magics_class, line_magic
 
 
 @magics_class
-class IpythonSolver(Magics):
+class IpythonCli(Magics):
     def __init__(self, shell, guesses: List[str] = list()):
         # You must call the parent constructor
-        super(IpythonSolver, self).__init__(shell)
+        super().__init__(shell)
         self.limit = 30
         self.reset(None)
+        self.n = 5
         self.wl = five_letter_word_list
+        self.alpha = ALPHA
 
     @line_magic
     def word_list(self, _):
@@ -412,12 +414,15 @@ class IpythonSolver(Magics):
     def wl(self, _):
         self.word_list(_)
 
+    def possibilities(self):
+        return given2(*self._guesses, alpha=self.alpha, empty_n=self.n)
+
     @line_magic
-    def possibilities(self, _):
-        return given2(*self._guesses)
+    def poss(self, _):
+        return self.possibilities()
 
     def _cur_options(self) -> List[str]:
-        return [w for w in options(regexes2(*given2(*self._guesses)), wl=self.wl) if w not in self._ignored]
+        return [w for w in options(regexes2(*self.possibilities()), wl=self.wl) if w not in self._ignored]
 
     def format(self, guess):
         assert self._solution
@@ -488,7 +493,7 @@ class IpythonSolver(Magics):
 
     @line_magic
     def letters(self, _):
-        pos_allowed, _ = given2(*self._guesses)
+        pos_allowed, _ = self.possibilities()
         return ''.join(sorted({c.upper() for allowed in pos_allowed.values() for c in allowed}))
 
     @line_magic
@@ -569,12 +574,13 @@ class IpythonSolver(Magics):
 
 
 def load_ipython_extension(ipython):  # magic name
-    ipython.register_magics(IpythonSolver)
+    ipython.register_magics(IpythonCli)
 
 try:
     get_ipython().run_line_magic('load_ext', 'eldrow')
 except:
     pass
+
 
 def main():
     pass
