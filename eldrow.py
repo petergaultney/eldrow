@@ -142,7 +142,7 @@ def _remove_solved(position_scores: PositionScores) -> PositionScores:
 
 def _replace_solved_with_average_totals(position_scores: PositionScores) -> PositionScores:
     avg_unsolved_total = defaultdict(int)
-    solved_letters = {list(letters.keys())[0] for _, letters in position_scores.items() if len(letters) == 1}
+    solved_letters = {list(letters.keys())[0] for letters in position_scores.values() if len(letters) == 1}
     for pos, scores in position_scores.items():
         if len(scores) > 1:
             for letter, score in scores.items():
@@ -293,7 +293,7 @@ def given2(*guesses, alpha: ty.Set[str] = ALPHA, empty_n: int = 5) -> Constraint
         for eliminated in elims.values():
             eliminated |= (alpha - set(char_counts))
     elims, char_counts = matrix_eliminate(alpha, (elims, char_counts))
-    return {i: ALPHA - e for i, e in elims.items()}, char_counts
+    return {i: alpha - e for i, e in elims.items()}, char_counts
 
 
 def options(regex_strs: Sequence[str], wl: list = five_letter_word_list) -> list:
@@ -386,6 +386,13 @@ def colorize(*guesses: str):
     return [colorize_g(guess) for guess in guesses]
 
 
+def kill_words(*words: str) -> None:
+    with open('killed.txt', 'a') as f:
+        for word in words:
+            if word:
+                f.write(word + '\n')
+
+
 from IPython.core.magic import Magics, magics_class, line_magic
 
 
@@ -444,6 +451,14 @@ class IpythonCli(Magics):
         self.solution(random.choice(sols))
 
     @line_magic
+    def record(self, _):
+        """Call this after finishing a game."""
+        if self._solution == _to_word(self._guesses[-1]):
+            with open('played.json', 'a') as f:
+                import json
+                f.write(json.dumps(self._guesses) + '\n')
+
+    @line_magic
     def solution(self, line):
         """For testing purposes. If you know the answer and want to manually
         try to 'discover' it using various tools, you can put the
@@ -494,7 +509,7 @@ class IpythonCli(Magics):
     @line_magic
     def letters(self, _):
         pos_allowed, _ = self.possibilities()
-        return ''.join(sorted({c.upper() for allowed in pos_allowed.values() for c in allowed}))
+        return ' '.join(sorted({c.upper() for allowed in pos_allowed.values() for c in allowed}))
 
     @line_magic
     def g(self, line):
@@ -508,9 +523,9 @@ class IpythonCli(Magics):
     def o(self, line):
         """Input an option that you have considered."""
         for word in line.split():
-            if line not in self._cur_options():
-                print(f'{line} not an option')
-            self._input_options.add(line)
+            if word not in self._cur_options():
+                print(f'{word} not an option')
+            self._input_options.add(word)
         self.guesses(None)
         return self.input_options()
 
@@ -523,6 +538,11 @@ class IpythonCli(Magics):
         idea_num = int(line)
         if idea_num > 0 and idea_num <= len(self.ideas):
             self.guess(self.ideas[idea_num - 1])
+
+    @line_magic
+    def kill(self, words):
+        self.ignore(words)
+        kill_words(*words.split())
 
     @line_magic
     def options(self, _):
@@ -546,7 +566,7 @@ class IpythonCli(Magics):
         opts = self._cur_options()
         limit = int(limit) if limit else self.limit
         return best_next_score(
-            five_letter_word_list,
+            [w for w in self.wl if w not in self._ignored],
             *_simple_words(*self._guesses),
             scorer=score_for_novelty(_replace_solved_with_average_totals(construct_position_freqs(opts))),
         )[-limit:]
@@ -570,7 +590,8 @@ class IpythonCli(Magics):
         self.ideas = list()
         self._solution = ''
         self._input_options = set()
-        self._ignored = set()
+        with open('killed.txt') as f:
+            self._ignored = set(f.read().splitlines())
 
 
 def load_ipython_extension(ipython):  # magic name
