@@ -453,7 +453,7 @@ class IpythonCli(Magics):
     @line_magic
     def record(self, _):
         """Call this after finishing a game."""
-        if self._solution == _to_word(self._guesses[-1]):
+        if len(_to_word(self._guesses[-1])) == self.n and len(self._cur_options()) == 1:
             with open('played.json', 'a') as f:
                 import json
                 f.write(json.dumps(self._guesses) + '\n')

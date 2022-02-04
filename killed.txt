@@ -31,3 +31,6 @@ degum
 beedi
 medii
 predy
+fundy
+tagma
+mikva
