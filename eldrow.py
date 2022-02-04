@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-
-import argparse
 import re
 import string
 import json
@@ -8,8 +6,8 @@ import random
 import typing as ty
 from collections import defaultdict
 from copy import deepcopy
-from itertools import combinations, chain
-from typing import Iterator, Tuple, List, Sequence, Dict, Set, Callable
+from itertools import combinations
+from typing import Tuple, List, Sequence, Dict, Callable
 
 
 with open('5_letter_words.txt') as f:
@@ -287,7 +285,7 @@ def given2(*guesses, alpha: ty.Set[str] = ALPHA, empty_n: int = 5) -> Constraint
     if not guesses:
         return {i: alpha - set() for i in range(empty_n)}, dict()
     elims, char_counts = merge_constraints(*[constraint(guess) for guess in guesses])
-    ## total known characters    == number of characters per string
+    #  total known characters    == number of characters per string
     if sum(char_counts.values()) == len(elims):
         # then any char not appearing in char_counts must also be eliminated
         for eliminated in elims.values():
@@ -364,7 +362,7 @@ def colorize(*guesses: str):
     CYELLOW = '\33[33m'
     CRED    = '\33[31m'
     CEND    = '\33[0m'
-    colorized = list()
+
     def colorize_g(guess: str) -> str:
         color_guess = ''
         for color, c in parse(guess):
@@ -455,7 +453,6 @@ class IpythonCli(Magics):
         """Call this after finishing a game."""
         if len(_to_word(self._guesses[-1])) == self.n and len(self._cur_options()) == 1:
             with open('played.json', 'a') as f:
-                import json
                 f.write(json.dumps(self._guesses) + '\n')
 
     @line_magic
@@ -504,6 +501,8 @@ class IpythonCli(Magics):
             if _to_word(line) not in five_letter_word_list:
                 return None
             self._guesses.append(line)
+            if len(line) == 5 and len(self._cur_options()) == 1:
+                print("\nSUCCESS!! Don't forget to %record this result!\n")
         return self.guesses(None)
 
     @line_magic
