@@ -34,3 +34,6 @@ predy
 fundy
 tagma
 mikva
+afald
+aflaj
+fover
