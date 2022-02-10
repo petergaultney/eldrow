@@ -7,7 +7,7 @@ import typing as ty
 from collections import defaultdict
 from copy import deepcopy
 from itertools import combinations
-from typing import Tuple, List, Sequence, Dict, Callable
+from typing import Tuple, List, Sequence, Dict, Callable, Set, Collection
 
 
 with open('5_letter_words.txt') as f:
@@ -59,14 +59,15 @@ ALPHA = set(string.ascii_lowercase)
 
 __very_unusual_letters = 'vzjxq'
 
+Scorer = Callable[..., float]
 
-def score_words(position_scores: dict = position_scores) -> Callable[[Tuple[str, ...]], float]:
+
+def score_words(position_scores: dict = position_scores) -> Scorer:
     """Scores words based on total positional score across the word list."""
     def _score_words(*words: str) -> float:
-        score = 0
         scored_in_position = defaultdict(lambda: defaultdict(lambda: False))
 
-        def score_word(w):
+        def score_word(w: str) -> float:
             word_score = 0
             for i, c in enumerate(w):
                 if i not in position_scores:
@@ -89,14 +90,13 @@ def score_words(position_scores: dict = position_scores) -> Callable[[Tuple[str,
     return _score_words
 
 
-def score_for_novelty(position_scores: dict = position_scores) -> Callable[[Tuple[str, ...]], float]:
+def score_for_novelty(position_scores: dict = position_scores) -> Scorer:
     """Scores words based on novelty of each character.
 
     In other words, we want as many different characters as possible,
     with as high a score in each position as possible.
     """
     def _score_for_novelty(*words: str) -> float:
-        score = 0.0
         characters_scored = set()
 
         def score_word(word: str) -> float:
@@ -131,7 +131,7 @@ def best_next_score(word_list: Sequence[str], *starting_words, scorer = score_wo
     best_words = list()
     for w_next in word_list:
         best_words.append((scorer(*starting_words, w_next), w_next))
-    return sorted(best_words)
+    return sorted(best_words, key=lambda t: t[0])
 
 
 def _remove_solved(position_scores: PositionScores) -> PositionScores:
@@ -149,15 +149,20 @@ def _replace_solved_with_average_totals(position_scores: PositionScores) -> Posi
     return {pos: (scores if len(scores) > 1 else dict(avg_unsolved_total)) for pos, scores in position_scores.items()}
 
 
-def regexes2(positions, counts):
-    def pos(i):
-        return '[' + ''.join(positions[i]) + ']'
-    return (''.join((pos(i) for i in positions)), *tuple(counts))
-
-
 PositionEliminations = ty.Dict[int, ty.Set[str]]
 CharacterCount = ty.Dict[str, int]
 Constraint = ty.Tuple[PositionEliminations, CharacterCount]
+
+
+def regexes2(constraint: Constraint) -> ty.Tuple[str, ...]:
+    positions, counts = constraint
+
+    def pos(i: int) -> str:
+        chars = positions[i]
+        if not chars:
+            raise ValueError(f'No characters are left for position {i} with constraint {constraint}')
+        return '[' + ''.join(chars) + ']'
+    return (''.join((pos(i) for i in positions)), *tuple(counts))
 
 
 def parse(guess: str) -> ty.Iterator[ty.Tuple[str, str]]:
@@ -294,14 +299,18 @@ def given2(*guesses, alpha: ty.Set[str] = ALPHA, empty_n: int = 5) -> Constraint
     return {i: alpha - e for i, e in elims.items()}, char_counts
 
 
-def options(regex_strs: Sequence[str], wl: list = five_letter_word_list) -> list:
-    def find_with_regexes(regexes: tuple):
-        for w in wl:
-            if all(regex.search(w) for regex in regexes):
-                yield w
-
+def options(regex_strs: Sequence[str], wl: Collection[str] = five_letter_word_list) -> List[str]:
+    opts = list()
     regexes = tuple(re.compile(regex_str) for regex_str in regex_strs)
-    return list(find_with_regexes(regexes))
+    for w in wl:
+        allowed = True
+        for regex in regexes:
+            if not regex.search(w):
+                allowed = False
+                break
+        if allowed:
+            opts.append(w)
+    return opts
 
 
 def _to_word(guess: str) -> str:
@@ -355,6 +364,45 @@ def answer(solution: str, guess: str) -> str:
 
     end_yellow()
     return ''.join(results)
+
+
+def elimination_scorer(
+        remaining_words: ty.Collection[str],
+        options_after_guess: Callable[[str, str], ty.List[str]],
+) -> Scorer:
+    """The idea is to optimize discovering information _about_ the word
+    rather than solving for the word itself. Therefore, knowledge of
+    whether a character is present (yellow) is valuable in a way that
+    it is not in a pure per-word scorer.
+
+    At the same time, guessing a character that is already known in
+    its same location is actively wasteful - you will eliminate no
+    words by guessing that.
+
+    Maybe this should be called the elimination scorer, and it should
+    focus on picking letters that will reduce the total score in the
+    position_scores dict.
+    """
+    def scorer(*words: str) -> float:
+        word = words[-1]
+        total_eliminated = 0
+        for pretend_solution in remaining_words:
+            num_left = len(options_after_guess(pretend_solution, word))
+            total_eliminated += len(remaining_words) - num_left
+        return round(total_eliminated / len(remaining_words), 3)
+
+    return scorer
+
+
+def make_options(
+        alpha: ty.Set[str],
+        word_list: ty.Collection[str],
+        guesses: ty.Sequence[str],
+):
+    def options_after_guess(solution: str, guess: str) -> List[str]:
+        constraint = given2(*(*guesses, answer(solution, guess)), alpha=alpha, empty_n=len(guess))
+        return options(regexes2(constraint), wl=word_list)
+    return options_after_guess
 
 
 def colorize(*guesses: str):
@@ -427,7 +475,7 @@ class IpythonCli(Magics):
         return self.possibilities()
 
     def _cur_options(self) -> List[str]:
-        return [w for w in options(regexes2(*self.possibilities()), wl=self.wl) if w not in self._ignored]
+        return [w for w in options(regexes2(self.possibilities()), wl=self.wl) if w not in self._ignored]
 
     def format(self, guess):
         assert self._solution
@@ -480,12 +528,6 @@ class IpythonCli(Magics):
     @line_magic
     def score(self, words):
         return score_words(construct_position_freqs(self._cur_options()))(*words.split())
-
-    @line_magic
-    def info(self, words):
-        return score_for_novelty(
-            _replace_solved_with_average_totals(construct_position_freqs(self._cur_options()))
-        )(*words.split())
 
     @line_magic
     def guesses(self, _):
@@ -559,16 +601,63 @@ class IpythonCli(Magics):
             scorer=score_words(construct_position_freqs(remaining_words)),
         )[-limit:]
 
+    def _info_scorer(self):
+        return score_for_novelty(
+            _replace_solved_with_average_totals(construct_position_freqs(self._cur_options()))
+        )
+
+    @line_magic
+    def info(self, words):
+        scorer = self._info_scorer()
+        cur_words = _simple_words(*self._guesses)
+        return [scorer(*cur_words, w) for w in words.split()]
+
     @line_magic
     def best_info(self, limit):
         """Uses full word list to maximize information score, rather than limiting to words it 'could' be"""
-        opts = self._cur_options()
         limit = int(limit) if limit else self.limit
-        return best_next_score(
-            [w for w in self.wl if w not in self._ignored],
-            *_simple_words(*self._guesses),
-            scorer=score_for_novelty(_replace_solved_with_average_totals(construct_position_freqs(opts))),
-        )[-limit:]
+        return [
+            (info_score, self.elim(word)[0][0], word)
+            for info_score, word
+            in best_next_score(
+                [w for w in self.wl if w not in self._ignored],
+                *_simple_words(*self._guesses),
+                scorer=self._info_scorer()
+            )[-limit:]
+        ]
+
+    @line_magic
+    def best_elim(self, limit, wl=None):
+        """Limit in this case only calculates against the first N words as
+        scored by the best_info scorer.  This algorithm is N**2 and
+        very expensive, so it generally shouldn't be run against lots
+        of options.
+        """
+        opts = self._cur_options()
+        words_to_test = wl or [res[2] for res in self.best_info(limit)]
+        return [
+            (score, self.info(word)[0], word) for score, word in best_next_score(
+                words_to_test,
+                *_simple_words(*self._guesses),
+                scorer=elimination_scorer(
+                    opts,
+                    make_options(
+                        self.alpha,
+                        opts,
+                        self._guesses,
+                    ),
+                ),
+            )[-self.limit:]
+        ]
+
+    @line_magic
+    def elim(self, words):
+        words = words.split()
+        return self.best_elim(None, wl=words)
+
+    @line_magic
+    def elim_opts(self, limit):
+        return self.best_elim(limit, wl=self._cur_options())
 
     @line_magic
     def pop(self, count):
