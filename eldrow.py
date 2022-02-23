@@ -7,7 +7,7 @@ import typing as ty
 from collections import defaultdict
 from copy import deepcopy
 from itertools import combinations
-from typing import Tuple, List, Sequence, Dict, Callable, Set, Collection
+from typing import Tuple, List, Sequence, Dict, Callable, Collection
 
 
 with open('5_letter_words.txt') as f:
@@ -536,15 +536,17 @@ class IpythonCli(Magics):
         return self._guesses
 
     @line_magic
-    def guess(self, line):
-        if line:
-            if self._solution:
-                line = self.format(line)
-            if _to_word(line) not in five_letter_word_list:
-                return None
-            self._guesses.append(line)
-            if len(line) == 5 and len(self._cur_options()) == 1:
-                print("\nSUCCESS!! Don't forget to %record this result!\n")
+    def guess(self, line: str):
+        for guess in line.split(' '):
+            if guess:
+                if self._solution:
+                    guess = self.format(guess)
+                if _to_word(guess) not in five_letter_word_list:
+                    return None
+                if guess not in self._guesses:
+                    self._guesses.append(guess)
+                if len(guess) == 5 and len(self._cur_options()) == 1:
+                    print("\nSUCCESS!! Don't forget to %record this result!\n")
         return self.guesses(None)
 
     @line_magic
