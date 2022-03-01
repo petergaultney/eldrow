@@ -558,6 +558,11 @@ class IpythonCli(Magics):
     def g(self, line):
         return self.guess(line)
 
+    @line_magic
+    def n(self, line):
+        self.reset(None)
+        self.g(line)
+
     def input_options(self):
         opts = set(self._cur_options())
         return sorted([k for k in self._input_options if k in opts])
@@ -636,9 +641,9 @@ class IpythonCli(Magics):
         of options.
         """
         opts = self._cur_options()
-        words_to_test = wl or [res[2] for res in self.best_info(limit)]
+        words_to_test = wl or (set([res[2] for res in self.best_info(limit)]) | set(opts[:30]))
         return [
-            (score, self.info(word)[0], word) for score, word in best_next_score(
+            (score, self.info(word)[0], '⬜' if word in opts else '⬛', word) for score, word in best_next_score(
                 words_to_test,
                 *_simple_words(*self._guesses),
                 scorer=elimination_scorer(
@@ -668,7 +673,7 @@ class IpythonCli(Magics):
             idea = self._guesses.pop()
             if idea not in self.ideas:
                 self.ideas.append(idea)
-        return self.g(None)
+        return self.guesses(None)
 
     @line_magic
     def scores(self, _):
