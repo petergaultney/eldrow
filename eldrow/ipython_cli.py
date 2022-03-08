@@ -276,8 +276,5 @@ class IpythonCli(Magics):
             self._ignored = set(f.read().splitlines())
 
 
-from eldrow.ipython_cli import IpythonCli
-
-
 def load_ipython_extension(ipython):  # magic name
     ipython.register_magics(IpythonCli)
