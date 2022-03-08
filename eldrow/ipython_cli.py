@@ -56,10 +56,6 @@ class IpythonCli(Magics):
     def possibilities(self):
         return given2(*self._guesses, alpha=self.alpha, empty_n=self.n)
 
-    @line_magic
-    def poss(self, _):
-        return self.possibilities()
-
     def _cur_options(self) -> List[str]:
         return [w for w in options(regexes2(self.possibilities()), wl=self.wl) if w not in self._ignored]
 
@@ -165,16 +161,6 @@ class IpythonCli(Magics):
         return self.input_options()
 
     @line_magic
-    def ideas(self, _):
-        return [f"{idea} ({i + 1})" for i, idea in enumerate(self.ideas)]
-
-    @line_magic
-    def idea(self, line):
-        idea_num = int(line)
-        if idea_num > 0 and idea_num <= len(self.ideas):
-            self.guess(self.ideas[idea_num - 1])
-
-    @line_magic
     def kill(self, words):
         self.ignore(words)
         kill_words(*words.split())
@@ -257,9 +243,7 @@ class IpythonCli(Magics):
     def pop(self, count):
         count = int(count) if count else 1
         for _ in range(count):
-            idea = self._guesses.pop()
-            if idea not in self.ideas:
-                self.ideas.append(idea)
+            self._guesses.pop()
         return self.guesses(None)
 
     @line_magic
@@ -269,7 +253,6 @@ class IpythonCli(Magics):
     @line_magic
     def reset(self, _):
         self._guesses = list()
-        self.ideas = list()
         self._solution = ""
         self._input_options = set()
         with open("killed.txt") as f:
