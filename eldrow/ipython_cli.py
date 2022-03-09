@@ -1,20 +1,18 @@
-from typing import List
+from typing import List, Tuple
 import json
 import random
+import re
 
+import getpass
 from IPython.core.magic import Magics, magics_class, line_magic
 
-from .constrain import given2, regexes2, ALPHA, guess_to_word
+from .constrain import ALPHA, guess_to_word
 from .colors import colorize
-from .elimination import answer, options, elimination_scorer, make_options
-from .scoring import (
-    construct_position_freqs,
-    best_next_score,
-    score_words,
-    score_for_novelty,
-    replace_solved_with_average_totals,
-)
+from .elimination import answer
+from .scoring import construct_position_freqs, score_words
 from .words import five_letter_word_list, sols
+from .game import best_elim, best_options, Game, novelty, new_game, letters, get_options
+from .multi import elim_across_games
 
 
 def kill_words(*words: str) -> None:
@@ -24,8 +22,12 @@ def kill_words(*words: str) -> None:
                 f.write(word + "\n")
 
 
-def _simple_words(*guesses) -> List[str]:
-    return [guess_to_word(guess) for guess in guesses]
+def _p(game: Game):
+    return "  ".join(colorize(*game.guesses))
+
+
+def _f(f: float) -> str:
+    return f"{f:8.3f}"
 
 
 @magics_class
@@ -33,57 +35,81 @@ class IpythonCli(Magics):
     def __init__(self, shell, guesses: List[str] = list()):
         # You must call the parent constructor
         super().__init__(shell)
-        self.limit = 30
-        self.reset(None)
-        self.n = 5
+        self.limit = 15
         self.wl = five_letter_word_list
-        self.alpha = ALPHA
+        self.n = len(self.wl[0])
+        self.reset(None)
+
+    def _new_game(self, index: int):
+        with open("killed.txt") as f:
+            to_ignore = set(f.read().splitlines())
+        game = new_game(ALPHA, self.wl)
+        game.ignored = to_ignore
+        self.games[index] = game
+
+    def _prs(self, line) -> Tuple[Game, str]:
+        m = re.match(r"^\s*(\d+)(.*)", line or "")
+        if m:
+            game_number = int(m.group(1))
+            self.game_idx = game_number
+            if game_number not in self.games:
+                self._new_game(game_number)  # create new game
+            return self.games[game_number], m.group(2)
+        return self.games[self.game_idx], line
+
+    @line_magic
+    def game(self, index):
+        index = int(index)
+        assert index < len(self.games)
+        self.game_idx = index
+        self.guesses(str(index))
 
     @line_magic
     def word_list(self, _):
-        if self.wl is five_letter_word_list:
-            self.wl = sols
-            print("Switched to solutions - cheater...")
-        else:
-            self.wl = five_letter_word_list
+        """Switch the word lists"""
+        if self.wl is sols:
             print("Switched to full word list")
-        return self.guesses(_)
+            self.wl = five_letter_word_list
+        else:
+            print("Switched to likely candidates")
+            self.wl = sols
+        for game in self.games.values():
+            game.wl = self.wl
+            self._summarize(game)
 
     @line_magic
     def wl(self, _):
         self.word_list(_)
 
-    def possibilities(self):
-        return given2(*self._guesses, alpha=self.alpha, empty_n=self.n)
-
-    def _cur_options(self) -> List[str]:
-        return [w for w in options(regexes2(self.possibilities()), wl=self.wl) if w not in self._ignored]
-
-    def format(self, guess):
-        assert self._solution
-        return answer(self._solution, guess) or guess
+    def format(self, guess: str):
+        game, guess = self._prs(guess)
+        assert game.solution
+        return answer(game.solution, guess) or guess
 
     @line_magic
     def ignore(self, words):
-        self._ignored |= set(words.split())
+        for game in self.games:
+            game.ignored |= set(words.split())
 
     @line_magic
     def limit(self, line):
         if line:
             self.limit = int(line)
-        else:
-            return self.limit
+        return self.limit
 
     @line_magic
     def play(self, _):
-        self.solution(random.choice(sols))
+        self.reset(None)
+        self.games[0].solution = random.choice(sols)
 
     @line_magic
     def record(self, _):
         """Call this after finishing a game."""
-        if len(guess_to_word(self._guesses[-1])) == self.n and len(self._cur_options()) == 1:
+        assert len(self.games) == 1
+        game = self.games[0]
+        if len(guess_to_word(game.guesses[-1])) == self.n and len(get_options(game)) == 1:
             with open("played.json", "a") as f:
-                f.write(json.dumps(self._guesses) + "\n")
+                f.write(json.dumps(game.guesses) + "\n")
 
     @line_magic
     def solution(self, line):
@@ -91,51 +117,54 @@ class IpythonCli(Magics):
         try to 'discover' it using various tools, you can put the
         solution in, and that will make typing easier.
         """
-        if line:
-            self.reset(None)
-            self._solution = line
-        else:
-            import getpass
-
-            self._solution = getpass.getpass("Solution? ")
-
-    @line_magic
-    def p(self, _):
-        for colorized in colorize(*self._guesses):
-            print(colorized)
-
-    @line_magic
-    def words(self, _):
-        return _simple_words(*self._guesses)
+        game, line = self._prs(line)
+        game.solution = line or getpass.getpass("Solution? ")
 
     @line_magic
     def score(self, words):
-        return score_words(construct_position_freqs(self._cur_options()))(*words.split())
+        game, words = self._prs(words)
+        return score_words(construct_position_freqs(get_options(game)))(*words.split())
 
-    @line_magic
-    def guesses(self, _):
-        print(f"# options: {len(self._cur_options())}, input options: {len(self.input_options())}")
-        self.p(None)
-        return self._guesses
-
-    @line_magic
-    def guess(self, line: str):
-        for guess in line.split(" "):
-            if guess:
-                if self._solution:
-                    guess = self.format(guess)
-                if guess_to_word(guess) not in five_letter_word_list:
-                    return None
-                if guess not in self._guesses:
-                    self._guesses.append(guess)
-                if len(guess) == 5 and len(self._cur_options()) == 1:
-                    print("\nSUCCESS!! Don't forget to %record this result!\n")
-        return self.guesses(None)
+    def input_possibilities(self, game: Game):
+        opts = set(get_options(game))
+        return sorted([k for k in game.possibilities if k in opts])
 
     @line_magic
     def letters(self, _):
-        pos_allowed, _ = self.possibilities()
-        return " ".join(sorted({c.upper() for allowed in pos_allowed.values() for c in allowed}))
+        game, _ = self._prs(_)
+        return " ".join(letters(game))
+
+    def _summarize(self, game):
+        for game_number, g in self.games.items():
+            if game is g:
+                break
+        print(
+            f"# Game {game_number: 2}, options: {len(get_options(game)): 4}, "
+            f"user-selected: {len(self.input_possibilities(game))}, guesses: " + _p(game)
+        )
+        return game.guesses
+
+    def _guess(self, game, line):
+        for guess in line.split(" "):
+            if guess:
+                if game.solution:
+                    guess = self.format(guess)
+                if guess_to_word(guess) not in five_letter_word_list:
+                    return None
+                if guess not in game.guesses:
+                    game.guesses.append(guess)
+                if len(guess) == self.n and guess.upper() == guess:
+                    print("\nSUCCESS!! Don't forget to %record this result!\n")
+        return self._summarize(game)
+
+    @line_magic
+    def guesses(self, _, game):
+        game, _ = self._prs(_)
+        self._summarize(game)
+
+    @line_magic
+    def guess(self, line: str):
+        self._guess(*self._prs(line))
 
     @line_magic
     def g(self, line):
@@ -143,22 +172,21 @@ class IpythonCli(Magics):
 
     @line_magic
     def n(self, line):
-        self.reset(None)
-        self.g(line)
-
-    def input_options(self):
-        opts = set(self._cur_options())
-        return sorted([k for k in self._input_options if k in opts])
+        game, line = self._prs(line)
+        game.guesses = list()
+        self._guess(game, line)
 
     @line_magic
     def o(self, line):
         """Input an option that you have considered."""
+        game, line = self._prs(line)
+        options = set(get_options(game))
         for word in line.split():
-            if word not in self._cur_options():
+            if word not in options:
                 print(f"{word} not an option")
-            self._input_options.add(word)
-        self.guesses(None)
-        return self.input_options()
+            game.possibilities.add(word)
+        self._summarize(game)
+        return game.possibilities
 
     @line_magic
     def kill(self, words):
@@ -167,96 +195,84 @@ class IpythonCli(Magics):
 
     @line_magic
     def options(self, _):
-        opts = self._cur_options()
+        game, _ = self._prs(_)
+        opts = get_options(game)
         return opts, len(opts)
 
     @line_magic
     def best_options(self, limit):
         """Scores all remaining options against the position scores for remaining words"""
-        remaining_words = self._cur_options()
+        game, limit = self._prs(limit)
         limit = int(limit) if limit else self.limit
-        return best_next_score(
-            remaining_words,
-            *_simple_words(*self._guesses),
-            scorer=score_words(construct_position_freqs(remaining_words)),
-        )[-limit:]
-
-    def _info_scorer(self):
-        return score_for_novelty(
-            replace_solved_with_average_totals(construct_position_freqs(self._cur_options()))
-        )
+        return best_options(game)[:-limit]
 
     @line_magic
-    def info(self, words):
-        scorer = self._info_scorer()
-        cur_words = _simple_words(*self._guesses)
-        return [scorer(*cur_words, w) for w in words.split()]
+    def novelty(self, words):
+        game, words = self._prs(words)
+        words = words.split()
+        return [(score, word) for score, word in zip(novelty(game, *words), words)]
 
-    @line_magic
-    def best_info(self, limit):
-        """Uses full word list to maximize information score, rather than limiting to words it 'could' be"""
-        limit = int(limit) if limit else self.limit
+    def _best_elim(self, game, wl, limit: int = 30):
+        self._summarize(game)
         return [
-            (info_score, self.elim(word)[0][0], word)
-            for info_score, word in best_next_score(
-                [w for w in self.wl if w not in self._ignored],
-                *_simple_words(*self._guesses),
-                scorer=self._info_scorer(),
-            )[-limit:]
+            (t[0], t[1], "⬜" if t[2] else "⬛", t[3]) for t in best_elim(game, wl, limit)[-self.limit :]
         ]
 
     @line_magic
-    def best_elim(self, limit, wl=None):
+    def best_elim(self, limit):
         """Limit in this case only calculates against the first N words as
-        scored by the best_info scorer.  This algorithm is N**2 and
+        scored by the best_novelty scorer.  This algorithm is N**2 and
         very expensive, so it generally shouldn't be run against lots
         of options.
         """
-        opts = self._cur_options()
-        words_to_test = wl or (set([res[2] for res in self.best_info(limit)]) | set(opts[:30]))
+        game, limit = self._prs(limit)
+        return self._best_elim(game, None, int(limit) if limit else 30)
+
+    @line_magic
+    def games(self, _):
+        for game in self.games.values():
+            self._summarize(game)
+
+    @line_magic
+    def delete(self, game):
+        del self.games[int(game)]
+
+    @line_magic
+    def cross(self, num_to_test):
+        def fmt_ce(ce):
+            return (_f(ce.elim_ratio), ce.option_count, ce.solve_count)
+
+        num_to_test = int(num_to_test) if num_to_test else 30
         return [
-            (score, self.info(word)[0], "⬜" if word in opts else "⬛", word)
-            for score, word in best_next_score(
-                words_to_test,
-                *list(map(guess_to_word, self._guesses)),
-                scorer=elimination_scorer(
-                    opts,
-                    make_options(
-                        self.alpha,
-                        opts,
-                        self._guesses,
-                    ),
-                ),
-            )[-self.limit :]
+            (w, *fmt_ce(ce))
+            for w, ce in elim_across_games(self.games.values(), num_to_test)[-self.limit :]
         ]
 
     @line_magic
     def elim(self, words):
-        words = words.split()
-        return self.best_elim(None, wl=words)
+        game, words = self._prs(words)
+        return self._best_elim(game, wl=words.split())
 
     @line_magic
-    def elim_opts(self, limit):
-        return self.best_elim(limit, wl=self._cur_options())
+    def pop(self, line):
+        game, count = self._prs(line)
+        for _ in range(int(count) if count else 1):
+            game.guesses.pop()
+        return self.guesses(line.split()[0])
 
     @line_magic
-    def pop(self, count):
-        count = int(count) if count else 1
-        for _ in range(count):
-            self._guesses.pop()
-        return self.guesses(None)
+    def scores(self, line):
+        game, _ = self._prs(line)
+        return construct_position_freqs(get_options(game))
 
     @line_magic
-    def scores(self, _):
-        return construct_position_freqs(self._cur_options())
-
-    @line_magic
-    def reset(self, _):
-        self._guesses = list()
-        self._solution = ""
-        self._input_options = set()
-        with open("killed.txt") as f:
-            self._ignored = set(f.read().splitlines())
+    def reset(self, game):
+        if isinstance(game, int) or game and isinstance(game, str):
+            self._new_game(int(game))
+        else:
+            self.games = dict()
+            self.game_idx = 0
+            self._new_game(0)
 
 
 def load_ipython_extension(ipython):  # magic name

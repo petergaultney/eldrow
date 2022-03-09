@@ -1,4 +1,4 @@
-from typing import Dict, List, Callable, Sequence, Tuple
+from typing import Dict, List, Callable, Tuple, Collection
 from itertools import combinations
 from collections import defaultdict
 
@@ -100,7 +100,7 @@ def high_score_tuples(word_list: list = five_letter_word_list, n: int = 2) -> Li
 
 
 def best_next_score(
-    word_list: Sequence[str], *starting_words, scorer=score_words()
+    word_list: Collection[str], *starting_words, scorer=score_words()
 ) -> List[Tuple[int, str]]:
     """Determines a best next word score without regard to solving.
 
