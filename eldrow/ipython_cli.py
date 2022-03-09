@@ -179,7 +179,7 @@ class IpythonCli(Magics):
         for word in line.split():
             if word not in options:
                 print(f"{word} not an option")
-            game.possibilities.add(word)
+            game.possibilities.append(word)
         self._summarize(game)
         return game.possibilities
 
