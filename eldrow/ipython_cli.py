@@ -26,10 +26,6 @@ def _p(game: Game):
     return "  ".join(colorize(*game.guesses))
 
 
-def _f(f: float) -> str:
-    return f"{f:8.3f}"
-
-
 @magics_class
 class IpythonCli(Magics):
     def __init__(self, shell, guesses: List[str] = list()):
@@ -46,6 +42,7 @@ class IpythonCli(Magics):
         game = new_game(ALPHA, self.wl)
         game.ignored = to_ignore
         self.games[index] = game
+        return game
 
     def _prs(self, line) -> Tuple[Game, str]:
         m = re.match(r"^\s*(\d+)(.*)", line or "")
@@ -59,10 +56,8 @@ class IpythonCli(Magics):
 
     @line_magic
     def game(self, index):
-        index = int(index)
-        assert index < len(self.games)
-        self.game_idx = index
-        self.guesses(str(index))
+        self.game_idx = int(index)
+        self.guesses(index)
 
     @line_magic
     def word_list(self, _):
@@ -158,8 +153,8 @@ class IpythonCli(Magics):
         return self._summarize(game)
 
     @line_magic
-    def guesses(self, _, game):
-        game, _ = self._prs(_)
+    def guesses(self, idx):
+        game, _ = self._prs(idx)
         self._summarize(game)
 
     @line_magic
@@ -229,6 +224,13 @@ class IpythonCli(Magics):
         return self._best_elim(game, None, int(limit) if limit else 30)
 
     @line_magic
+    def bootstrap(self, line):
+        self.reset(None)
+        guesses = line.split(" ")
+        for i, guess in enumerate(guesses):
+            self._guess(self._new_game(i), guess)
+
+    @line_magic
     def games(self, _):
         for game in self.games.values():
             self._summarize(game)
@@ -240,7 +242,7 @@ class IpythonCli(Magics):
     @line_magic
     def cross(self, num_to_test):
         def fmt_ce(ce):
-            return (_f(ce.elim_ratio), ce.option_count, ce.solve_count)
+            return (f"{ce.elim_ratio:8.3f}", ce.option_count, ce.solve_count)
 
         num_to_test = int(num_to_test) if num_to_test else 30
         return [

@@ -42,7 +42,7 @@ def elim_across_games(games: ty.Collection[Game], limit: int) -> ty.List[ty.Tupl
             solve_inc = 1 if elim_count == len(opts) - 1 else 0
             cross_elim = cross_game_elimination_multipliers[word]
             cross_game_elimination_multipliers[word] = CrossElim(
-                cross_elim.elim_ratio * game_elim_ratio if not len(opts) == 1 else 1.0,
+                cross_elim.elim_ratio * (game_elim_ratio if not len(opts) == 1 else 1.0),
                 cross_elim.option_count + opt_inc,
                 cross_elim.solve_count + solve_inc,
             )
