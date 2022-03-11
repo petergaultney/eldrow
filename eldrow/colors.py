@@ -1,7 +1,8 @@
+from typing import List
 from .constrain import parse
 
 
-def colorize(*guesses: str):
+def colorize(*guesses: str) -> List[str]:
     CGREEN = "\33[32m"
     CYELLOW = "\33[33m"
     CRED = "\33[31m"

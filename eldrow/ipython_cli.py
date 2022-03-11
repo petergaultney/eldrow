@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import List, Tuple
 import json
 import random
@@ -240,14 +241,27 @@ class IpythonCli(Magics):
         del self.games[int(game)]
 
     @line_magic
-    def cross(self, num_to_test):
-        def fmt_ce(ce):
-            return (f"{ce.elim_ratio:8.3f}", ce.option_count, ce.solve_count)
+    def cross(self, line):
+        """Cross-elimination uses all games to find a good next guess"""
 
-        num_to_test = int(num_to_test) if num_to_test else 30
+        def parse_cross() -> tuple[int, tuple[str, ...]]:
+            bits = line.split()
+            if bits:
+                return int(bits[0]), bits[1:]
+            return 30, tuple()
+
+        num_to_test, other_words = parse_cross()
+
+        def fmt_ce(ce):
+            solutions = "".join(["🟩" if k in ce.solved else "⬛" for k in self.games.keys()])
+            options = "".join(["🟨" if k in ce.option else "⬛" for k in self.games.keys()])
+            return (f"{ce.elim_ratio:8.3f}", solutions, options)
+
         return [
             (w, *fmt_ce(ce))
-            for w, ce in elim_across_games(self.games.values(), num_to_test)[-self.limit :]
+            for w, ce in elim_across_games(self.games, num_to_test, add_to_wordlist=other_words)[
+                -self.limit :
+            ]
         ]
 
     @line_magic
