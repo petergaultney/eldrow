@@ -1412,6 +1412,7 @@ piety
 piggy
 pilot
 pinch
+pined
 piney
 pinky
 pinto
@@ -2066,10 +2067,12 @@ tight
 tilde
 timer
 timid
+tinny
 tipsy
 titan
 tithe
 title
+tizzy
 toast
 today
 toddy
@@ -2131,6 +2134,7 @@ tubal
 tuber
 tulip
 tulle
+tummy
 tumor
 tunic
 turbo

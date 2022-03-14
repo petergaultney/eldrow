@@ -180,7 +180,8 @@ class IpythonCli(Magics):
         for word in line.split():
             if word not in options:
                 print(f"{word} not an option")
-            game.possibilities.append(word)
+            else:
+                game.possibilities.append(word)
         self._summarize(game)
         return game.possibilities
 
@@ -208,10 +209,15 @@ class IpythonCli(Magics):
         words = words.split()
         return [(score, word) for score, word in zip(novelty(game, *words), words)]
 
-    def _best_elim(self, game, wl, limit: int = 30):
+    def _best_elim(self, game, wl, limit: int = 300):
         self._summarize(game)
+
+        def fmt3(f):
+            return f"{f: 3.3f}"
+
         return [
-            (t[0], t[1], "⬜" if t[2] else "⬛", t[3]) for t in best_elim(game, wl, limit)[-self.limit :]
+            (fmt3(t[0]), fmt3(t[1]), "⬜" if t[2] else "⬛", t[3])
+            for t in best_elim(game, wl, limit)[-self.limit :]
         ]
 
     @line_magic
@@ -222,7 +228,7 @@ class IpythonCli(Magics):
         of options.
         """
         game, limit = self._prs(limit)
-        return self._best_elim(game, None, int(limit) if limit else 30)
+        return self._best_elim(game, None, int(limit) if limit else 300)
 
     @line_magic
     def bootstrap(self, line):
@@ -248,7 +254,7 @@ class IpythonCli(Magics):
             bits = line.split()
             if bits:
                 return int(bits[0]), bits[1:]
-            return 30, tuple()
+            return 100, tuple()
 
         num_to_test, other_words = parse_cross()
 

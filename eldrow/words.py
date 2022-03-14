@@ -4,5 +4,8 @@ with open("5_letter_words.txt") as f:
 with open("sols.txt") as f:
     sols = f.read().splitlines()
 
+with open("other.txt") as f:
+    sols = sorted(set(sols) | set(f.read().splitlines()))
+
 with open("dumb_words.txt") as f:
     dumb_words = f.read().splitlines()

@@ -106,18 +106,31 @@ def best_elim(
     opts = get_options(game)
     novelty_scorer = _novelty_scorer(game)
     simple_guesses = _simple_words(*game.guesses)
-    return [
-        (score, novelty_scorer(*simple_guesses, word), word in opts, word)
-        for score, word in best_next_score(
-            wordlist or novel_or_option(game, opts, limit),
-            *list(map(guess_to_word, game.guesses)),
-            scorer=elimination_scorer(
-                opts,
-                make_options(
-                    game.alpha,
+
+    by_is_option = lambda x: x[2]
+    by_novelty_score = lambda x: x[1]
+    by_elim_score = lambda x: x[0]
+
+    def sort_many(sorts, xs):
+        for sort in sorts:
+            xs = sorted(xs, key=sort)
+        return xs
+
+    return sort_many(
+        [by_novelty_score, by_is_option, by_elim_score],
+        [
+            (score, novelty_scorer(*simple_guesses, word), word in opts, word)
+            for score, word in best_next_score(
+                wordlist or novel_or_option(game, opts, limit),
+                *list(map(guess_to_word, game.guesses)),
+                scorer=elimination_scorer(
                     opts,
-                    game.guesses,
+                    make_options(
+                        game.alpha,
+                        opts,
+                        game.guesses,
+                    ),
                 ),
-            ),
-        )
-    ]
+            )
+        ],
+    )
