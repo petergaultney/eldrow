@@ -1,8 +1,9 @@
-#!/usr/bin/env python
 import string
 import typing as ty
 from collections import defaultdict
 from copy import deepcopy
+
+from .parse import paren_yellow_parse as parse
 
 
 ALPHA = set(string.ascii_lowercase)
@@ -28,28 +29,10 @@ def regexes2(constraint: Constraint) -> ty.Tuple[str, ...]:
     return ("".join((pos(i) for i in positions)), *tuple(counts))
 
 
-def parse(guess: str) -> ty.Iterator[ty.Tuple[str, str]]:
-    is_yellow = False
-    for c in guess:
-        if c == "(":
-            assert not is_yellow, guess
-            is_yellow = True
-        elif c == ")":
-            assert is_yellow, guess
-            is_yellow = False
-        else:
-            if is_yellow:
-                yield "yellow", c.lower()
-            elif c in string.ascii_uppercase:
-                yield "green", c.lower()
-            else:
-                yield "gray", c
-
-
 def constraint(guess: str, alpha: ty.Set[str] = ALPHA) -> Constraint:
     n = len(guess_to_word(guess))
-    position_eliminations = {i: set() for i in range(n)}
-    char_counts = defaultdict(int)
+    position_eliminations: PositionEliminations = {i: set() for i in range(n)}
+    char_counts: CharacterCount = defaultdict(int)
 
     def eliminate(c, from_=set(range(n))):
         for i in from_:

@@ -49,15 +49,15 @@ class IpythonCli(Magics):
         m = re.match(r"^\s*(\d+)(.*)", line or "")
         if m:
             game_number = int(m.group(1))
-            self.game_idx = game_number
+            self.game_key = game_number
             if game_number not in self.games:
                 self._new_game(game_number)  # create new game
             return self.games[game_number], m.group(2)
-        return self.games[self.game_idx], line
+        return self.games[self.game_key], line
 
     @line_magic
     def game(self, index):
-        self.game_idx = int(index)
+        self.game_key = int(index)
         self.guesses(index)
 
     @line_magic
@@ -293,8 +293,8 @@ class IpythonCli(Magics):
             self._new_game(int(game))
         else:
             self.games = dict()
-            self.game_idx = 0
-            self._new_game(0)
+            self.game_key = 1
+            self._new_game(self.game_key)
 
 
 def load_ipython_extension(ipython):  # magic name
