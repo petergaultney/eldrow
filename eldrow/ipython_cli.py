@@ -10,6 +10,7 @@ from IPython.core.magic import Magics, magics_class, line_magic
 from .constrain import ALPHA, guess_to_word
 from .colors import colorize
 from .elimination import answer
+from .explore import explore, pass_complete_idea
 from .scoring import construct_position_freqs, score_words
 from .words import five_letter_word_list, sols
 from .game import best_elim, best_options, Game, novelty, new_game, letters, get_options
@@ -96,13 +97,13 @@ class IpythonCli(Magics):
     @line_magic
     def play(self, _):
         self.reset(None)
-        self.games[0].solution = random.choice(sols)
+        self.games[self.game_key].solution = random.choice(sols)
 
     @line_magic
     def record(self, _):
         """Call this after finishing a game."""
         assert len(self.games) == 1
-        game = self.games[0]
+        game = self.games[self.game_key]
         if len(guess_to_word(game.guesses[-1])) == self.n and len(get_options(game)) == 1:
             with open("played.json", "a") as f:
                 f.write(json.dumps(game.guesses) + "\n")
@@ -180,10 +181,10 @@ class IpythonCli(Magics):
         for word in line.split():
             if word not in options:
                 print(f"{word} not an option")
-            else:
+            elif word not in game.possibilities:
                 game.possibilities.append(word)
         self._summarize(game)
-        return game.possibilities
+        return [w for w in game.possibilities if w in options]
 
     @line_magic
     def kill(self, words):
@@ -216,7 +217,7 @@ class IpythonCli(Magics):
             return f"{f: 3.3f}"
 
         return [
-            (fmt3(t[0]), fmt3(t[1]), "⬜" if t[2] else "⬛", t[3])
+            (fmt3(t[0]), fmt3(t[1]), "🟨" if t[2] else "⬛", t[3])
             for t in best_elim(game, wl, limit)[-self.limit :]
         ]
 
@@ -286,6 +287,11 @@ class IpythonCli(Magics):
     def scores(self, line):
         game, _ = self._prs(line)
         return construct_position_freqs(get_options(game))
+
+    @line_magic
+    def x(self, idea_line):
+        game, idea = self._prs(idea_line)
+        return explore(get_options(game), idea.strip())
 
     @line_magic
     def reset(self, game):
