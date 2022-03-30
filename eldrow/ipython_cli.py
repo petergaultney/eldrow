@@ -13,7 +13,7 @@ from .elimination import answer
 from .explore import explore, pass_complete_idea
 from .scoring import construct_position_freqs, score_words
 from .words import five_letter_word_list, sols
-from .game import best_elim, best_options, Game, novelty, new_game, letters, get_options
+from .game import best_elim, best_options, Game, novelty, new_game, letters, get_options, unparse
 from .multi import elim_across_games
 
 
@@ -53,8 +53,8 @@ class IpythonCli(Magics):
             self.game_key = game_number
             if game_number not in self.games:
                 self._new_game(game_number)  # create new game
-            return self.games[game_number], m.group(2)
-        return self.games[self.game_key], line
+            return self.games[game_number], m.group(2).strip()
+        return self.games[self.game_key], line.strip()
 
     @line_magic
     def game(self, index):
@@ -77,11 +77,6 @@ class IpythonCli(Magics):
     @line_magic
     def wl(self, _):
         self.word_list(_)
-
-    def format(self, guess: str):
-        game, guess = self._prs(guess)
-        assert game.solution
-        return answer(game.solution, guess) or guess
 
     @line_magic
     def ignore(self, words):
@@ -145,7 +140,7 @@ class IpythonCli(Magics):
         for guess in line.split(" "):
             if guess:
                 if game.solution:
-                    guess = self.format(guess)
+                    guess = unparse(game, guess)
                 if guess_to_word(guess) not in five_letter_word_list:
                     return None
                 if guess not in game.guesses:

@@ -45,7 +45,7 @@ def get_options(game: Game) -> ty.List[str]:
     return [w for w in options(regexes2(_given(game)), wl=game.wl) if w not in game.ignored]
 
 
-def format(game: Game, guess: str) -> str:
+def unparse(game: Game, guess: str) -> str:
     assert game.solution
     return answer(game.solution, guess) or guess
 

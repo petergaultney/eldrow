@@ -25,7 +25,6 @@ def options(regex_strs: Sequence[str], wl: Collection[str] = five_letter_word_li
 def answer(solution: str, guess: str) -> str:
     if len(solution) != len(guess):
         return guess
-
     guess = guess_to_word(guess)
     char_counts = defaultdict(int)
     for c in solution:
