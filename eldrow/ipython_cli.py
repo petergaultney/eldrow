@@ -7,8 +7,8 @@ import re
 import getpass
 from IPython.core.magic import Magics, magics_class, line_magic
 
+from . import colors
 from .constrain import ALPHA, guess_to_word
-from .colors import colorize
 from .elimination import answer
 from .explore import explore, pass_complete_idea
 from .scoring import construct_position_freqs, score_words
@@ -25,7 +25,17 @@ def kill_words(*words: str) -> None:
 
 
 def _p(game: Game):
-    return "  ".join(colorize(*game.guesses))
+    return "  ".join(colors.colorize(*game.guesses))
+
+
+def _game_color(opts: int, poss: int) -> str:
+    if opts == poss:
+        if opts == 1:
+            return colors.CBLUE
+        return colors.CYELLOW
+    if opts == 1:
+        return colors.CGREEN
+    return colors.CEND
 
 
 @magics_class
@@ -130,9 +140,14 @@ class IpythonCli(Magics):
         for game_number, g in self.games.items():
             if game is g:
                 break
+        opts = len(get_options(game))
+        poss = len(self.input_possibilities(game))
         print(
-            f"# Game {game_number: 2}, options: {len(get_options(game)): 4}, "
-            f"user-selected: {len(self.input_possibilities(game))}, guesses: " + _p(game)
+            colors.c(
+                _game_color(opts, poss),
+                f"# Game {game_number: 2}, options: {opts: 4}, user-selected: {poss}, guesses: ",
+            )
+            + _p(game)
         )
         return game.guesses
 
@@ -169,9 +184,24 @@ class IpythonCli(Magics):
         self._guess(game, line)
 
     @line_magic
+    def x(self, idea_line):
+        game, idea = self._prs(idea_line)
+        options = set(get_options(game))
+        exploration = explore(options, idea.strip())
+        if (
+            len(exploration) == 1
+            and exploration[0] in options
+            and exploration[0] not in game.possibilities
+        ):
+            game.possibilities.append(exploration[0])
+            self._summarize(game)
+        return exploration
+
+    @line_magic
     def o(self, line):
         """Input an option that you have considered."""
         game, line = self._prs(line)
+
         options = set(get_options(game))
         for word in line.split():
             if word not in options:
@@ -282,11 +312,6 @@ class IpythonCli(Magics):
     def scores(self, line):
         game, _ = self._prs(line)
         return construct_position_freqs(get_options(game))
-
-    @line_magic
-    def x(self, idea_line):
-        game, idea = self._prs(idea_line)
-        return explore(get_options(game), idea.strip())
 
     @line_magic
     def reset(self, game):
