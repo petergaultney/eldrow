@@ -51,7 +51,6 @@ skank
 woosh
 caret
 fiver
-saver
 potty
 latex
 mommy
@@ -59,7 +58,6 @@ lossy
 baldy
 futon
 dreck
-icier
 unpin
 moxie
 grist
@@ -68,6 +66,6 @@ chewy
 antsy
 gulch
 mulch
-finer
 diner
 xenon
+offal
