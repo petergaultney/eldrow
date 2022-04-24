@@ -26,7 +26,12 @@ def regexes2(constraint: Constraint) -> ty.Tuple[str, ...]:
             raise ValueError(f"No characters are left for position {i} with constraint {constraint}")
         return "[" + "".join(chars) + "]"
 
-    return ("".join((pos(i) for i in positions)), *tuple(counts))
+    def count(c: str, i: int) -> str:
+        if i == 1:
+            return c
+        return ".*".join([c for _ in range(i)])
+
+    return ("".join((pos(i) for i in positions)), *[count(c, i) for c, i in counts.items()])
 
 
 def constraint(guess: str, alpha: ty.Set[str] = ALPHA) -> Constraint:

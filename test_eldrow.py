@@ -1,5 +1,8 @@
 from eldrow.constrain import constraint, ALPHA, given2, merge_constraints
 from eldrow.explore import explore
+from eldrow.game import Game, best_elim
+import eldrow.game as g
+from eldrow.words import sols
 
 
 def test_constraint():
@@ -106,8 +109,8 @@ def test_can_matrix_solve_for_location_of_second_b():
 
 def test_explore():
     opts = ["relax", "relay"]
-    assert explore(opts, "..lay") == ["relay"]
-    assert explore(opts, "..lax") == ["relax"]
+    assert explore(opts, "..lay") == ["..lay"]
+    assert explore(opts, "..lax") == ["..lax"]
     assert explore(opts, "ral..") == []
     assert explore(opts, "relax") == ["relax"]
 
@@ -115,3 +118,16 @@ def test_explore():
 def test_complete_idea():
     # assert pass_complete_idea()
     pass
+
+
+def test_options_carat():
+    words = "cr(a)te", "cAr(a)t"
+    game = Game(5, sols, ALPHA, "mania", words, list(), set())
+    assert "mason" not in g.get_options(game)
+    print(g.get_options(game))
+
+
+def test_best_elim_carat():
+    words = "cr(a)te", "cAr(a)t"
+    game = Game(5, sols, ALPHA, "mania", words, list(), set())
+    best_elim(game, game.wl, 1200)

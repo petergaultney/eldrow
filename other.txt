@@ -69,3 +69,6 @@ mulch
 diner
 xenon
 offal
+shred
+chink
+qubit

@@ -66,6 +66,11 @@ def answer(solution: str, guess: str) -> str:
     return "".join(results)
 
 
+# bug with following inputs:
+# cr(a)te cAr(a)t
+# best_elim 1 1200
+
+
 def elimination_scorer(
     remaining_words: ty.Collection[str],
     options_after_guess: Callable[[str, str], ty.List[str]],
