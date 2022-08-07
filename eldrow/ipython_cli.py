@@ -9,8 +9,7 @@ from IPython.core.magic import Magics, magics_class, line_magic
 
 from . import colors
 from .constrain import ALPHA, guess_to_word
-from .elimination import answer
-from .explore import explore, pass_complete_idea
+from .explore import explore
 from .scoring import construct_position_freqs, score_words
 from .words import five_letter_word_list, sols
 from .game import best_elim, best_options, Game, novelty, new_game, letters, get_options, unparse
@@ -187,7 +186,7 @@ class IpythonCli(Magics):
     def x(self, idea_line):
         game, idea = self._prs(idea_line)
         options = set(get_options(game))
-        exploration = explore(options, idea.strip())
+        exploration = explore(options, idea.strip(), game.possibilities)
         if (
             len(exploration) == 1
             and exploration[0] in options

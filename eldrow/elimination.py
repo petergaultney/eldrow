@@ -72,7 +72,7 @@ def answer(solution: str, guess: str) -> str:
 
 
 def elimination_scorer(
-    remaining_words: ty.Collection[str],
+    remaining_possibilities: ty.Collection[str],
     options_after_guess: Callable[[str, str], ty.List[str]],
 ) -> Scorer:
     """The idea is to optimize discovering information _about_ the word
@@ -90,12 +90,12 @@ def elimination_scorer(
     """
 
     def scorer(*words: str) -> float:
-        word = words[-1]
+        new_word_to_score = words[-1]
         total_eliminated = 0
-        for pretend_solution in remaining_words:
-            num_left = len(options_after_guess(pretend_solution, word))
-            total_eliminated += len(remaining_words) - num_left
-        return round(total_eliminated / len(remaining_words), 3)
+        for assumed_solution in remaining_possibilities:
+            num_left = len(options_after_guess(assumed_solution, new_word_to_score))
+            total_eliminated += len(remaining_possibilities) - num_left
+        return round(total_eliminated / len(remaining_possibilities), 3)
 
     return scorer
 

@@ -3,7 +3,7 @@ import typing as ty
 from .game import Game, get_options, _given
 
 
-def explore(options: ty.Sequence[str], idea: str) -> ty.List[str]:
+def explore(options: ty.Sequence[str], idea: str, already_explored: ty.Collection[str] = tuple()) -> ty.List[str]:
     if not idea:
         return list()
 
@@ -16,7 +16,10 @@ def explore(options: ty.Sequence[str], idea: str) -> ty.List[str]:
                     break
                 matches += idea[i]
             if matches:
-                yield matches
+                if w in already_explored:
+                    yield w
+                else:
+                    yield matches
 
     return list(_())
 
