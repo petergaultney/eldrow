@@ -23,7 +23,9 @@ def kill_words(*words: str) -> None:
                 f.write(word + "\n")
 
 
-def _p(game: Game):
+def _p(game: Game, multiline: bool = False):
+    if multiline:
+        return '\n        '.join(['', *colors.colorize(*game.guesses)])
     return "  ".join(colors.colorize(*game.guesses))
 
 
@@ -64,11 +66,6 @@ class IpythonCli(Magics):
                 self._new_game(game_number)  # create new game
             return self.games[game_number], m.group(2).strip()
         return self.games[self.game_key], line.strip()
-
-    @line_magic
-    def game(self, index):
-        self.game_key = int(index)
-        self.guesses(index)
 
     @line_magic
     def word_list(self, _):
@@ -135,7 +132,7 @@ class IpythonCli(Magics):
         game, _ = self._prs(_)
         return " ".join(letters(game))
 
-    def _summarize(self, game):
+    def _summarize(self, game, multiline: bool = False):
         for game_number, g in self.games.items():
             if game is g:
                 break
@@ -146,7 +143,7 @@ class IpythonCli(Magics):
                 _game_color(opts, poss),
                 f"# Game {game_number: 2}, options: {opts: 4}, user-selected: {poss}, guesses: ",
             )
-            + _p(game)
+            + _p(game, multiline)
         )
         return game.guesses
 
@@ -164,17 +161,8 @@ class IpythonCli(Magics):
         return self._summarize(game)
 
     @line_magic
-    def guesses(self, idx):
-        game, _ = self._prs(idx)
-        self._summarize(game)
-
-    @line_magic
     def guess(self, line: str):
         self._guess(*self._prs(line))
-
-    @line_magic
-    def g(self, line):
-        return self.guess(line)
 
     @line_magic
     def n(self, line):
@@ -186,7 +174,7 @@ class IpythonCli(Magics):
     def x(self, idea_line):
         game, idea = self._prs(idea_line)
         options = set(get_options(game))
-        exploration = explore(options, idea.strip(), game.possibilities)
+        exploration = explore(list(options), idea.strip(), game.possibilities)
         if (
             len(exploration) == 1
             and exploration[0] in options
@@ -209,6 +197,11 @@ class IpythonCli(Magics):
                 game.possibilities.append(word)
         self._summarize(game)
         return [w for w in game.possibilities if w in options]
+
+    @line_magic
+    def g(self, idx):
+        game, _ = self._prs(idx)
+        self._summarize(game, multiline=True)
 
     @line_magic
     def kill(self, words):
@@ -305,7 +298,7 @@ class IpythonCli(Magics):
         game, count = self._prs(line)
         for _ in range(int(count) if count else 1):
             game.guesses.pop()
-        return self.guesses(line.split()[0])
+        return self.g('')
 
     @line_magic
     def scores(self, line):

@@ -83,4 +83,4 @@ def elim_across_games(
         cross_game_elimination_multipliers.items(), key=lambda kv: len(kv[1].option)
     )
     sorted_by_solving = sorted(sorted_by_options, key=lambda kv: len(kv[1].solved))
-    return sorted(sorted_by_solving, key=lambda kv: kv[1].elim_ratio)
+    return sorted(sorted_by_solving, key=lambda kv: (len(kv[1].solved), kv[1].elim_ratio, len(kv[1].option)))

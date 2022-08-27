@@ -5,7 +5,7 @@ from .game import Game, get_options, _given
 
 def explore(options: ty.Sequence[str], idea: str, already_explored: ty.Collection[str] = tuple()) -> ty.List[str]:
     if not idea:
-        return list()
+        idea = '.' * len(options[0])
 
     def _():
         for w in options:
