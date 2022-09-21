@@ -2,8 +2,9 @@ import typing as ty
 import itertools
 from dataclasses import dataclass
 
-from .constrain import given2, regexes2, guess_to_word
+from .constrain import given2, regexes2
 from .elimination import answer, options, elimination_scorer, make_options
+from .parse import guess_to_word
 from .scoring import (
     best_next_score,
     score_words,

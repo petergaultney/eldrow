@@ -3,7 +3,7 @@ import typing as ty
 from collections import defaultdict
 from copy import deepcopy
 
-from .parse import paren_yellow_parse as parse
+from .parse import paren_yellow_parse as parse, guess_to_word
 
 
 ALPHA = set(string.ascii_lowercase)
@@ -148,5 +148,3 @@ def given2(*guesses, alpha: ty.Set[str] = ALPHA, empty_n: int = 5) -> Constraint
     return {i: alpha - e for i, e in elims.items()}, char_counts
 
 
-def guess_to_word(guess: str) -> str:
-    return guess.replace("(", "").replace(")", "").lower()

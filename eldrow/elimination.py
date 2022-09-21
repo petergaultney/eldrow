@@ -3,9 +3,10 @@ from typing import Sequence, Collection, List, Callable
 from collections import defaultdict
 import re
 
+from .parse import guess_to_word
 from .words import five_letter_word_list
 from .scoring import Scorer
-from .constrain import guess_to_word, given2, regexes2
+from .constrain import given2, regexes2
 
 
 def options(regex_strs: Sequence[str], wl: Collection[str] = five_letter_word_list) -> List[str]:
