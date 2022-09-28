@@ -96,9 +96,13 @@ class IpythonCli(Magics):
         return self.limit
 
     @line_magic
-    def play(self, _):
+    def play(self, line):
         self.reset(None)
-        self.games[self.game_key].solution = random.choice(sols)
+        num = int(line) if line else 1
+        for i in range(1, num + 1):
+            self._new_game(i)
+            self.games[i].solution = random.choice(sols)
+        assert len(self.games) == len({g.solution for g in self.games.values()}), "Try again - we picked the same word multiple times"
 
     @line_magic
     def record(self, _):
