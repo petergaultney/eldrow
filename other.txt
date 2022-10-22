@@ -82,3 +82,4 @@ croon
 usury
 prion
 auger
+swipe

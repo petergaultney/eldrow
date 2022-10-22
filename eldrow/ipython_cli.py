@@ -45,7 +45,7 @@ class IpythonCli(Magics):
         # You must call the parent constructor
         super().__init__(shell)
         self.limit = 15
-        self.wl = five_letter_word_list
+        self.wl = sols
         self.n = len(self.wl[0])
         self.reset(None)
 
