@@ -40,9 +40,9 @@ def elim_game(candidates: ty.Collection[str], key: str, game: Game) -> ty.Dict[s
     cross_game_elimination_multipliers = dict()
     for word in candidates:
         elim_count = elim_scorer(word)
-        game_elim_ratio = elim_count / len(opts)
+        game_elim_ratio = (elim_count + 1) / len(opts)
         cross_game_elimination_multipliers[word] = CrossElim(
-            (game_elim_ratio if not len(opts) == 1 else 1.0),
+            (game_elim_ratio if len(opts) != 1 else 1.0),
             {key} if elim_count == len(opts) - 1 else set(),
             {key} if word in opts else set(),
         )
@@ -83,4 +83,6 @@ def elim_across_games(
         cross_game_elimination_multipliers.items(), key=lambda kv: len(kv[1].option)
     )
     sorted_by_solving = sorted(sorted_by_options, key=lambda kv: len(kv[1].solved))
-    return sorted(sorted_by_solving, key=lambda kv: (len(kv[1].solved), kv[1].elim_ratio, len(kv[1].option)))
+    return sorted(
+        sorted_by_solving, key=lambda kv: (len(kv[1].solved), kv[1].elim_ratio, len(kv[1].option))
+    )

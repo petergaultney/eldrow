@@ -93,7 +93,7 @@ def merge_constraints(*constraints: Constraint) -> Constraint:
     return merged
 
 
-def matrix_eliminate(alpha: ty.Set[str], constraint: Constraint) -> Constraint:
+def _narrow_constraint(alpha: ty.Set[str], constraint: Constraint) -> Constraint:
     # at this point, it's possible to use position-by-position process
     # of elimination.  in other words, if a character is known to be
     # required N times but is eliminated in all but N locations, then
@@ -144,7 +144,5 @@ def given2(*guesses, alpha: ty.Set[str] = ALPHA, empty_n: int = 5) -> Constraint
         # then any char not appearing in char_counts must also be eliminated
         for eliminated in elims.values():
             eliminated |= alpha - set(char_counts)
-    elims, char_counts = matrix_eliminate(alpha, (elims, char_counts))
+    elims, char_counts = _narrow_constraint(alpha, (elims, char_counts))
     return {i: alpha - e for i, e in elims.items()}, char_counts
-
-

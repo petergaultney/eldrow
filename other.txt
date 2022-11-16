@@ -83,3 +83,4 @@ usury
 prion
 auger
 swipe
+canto

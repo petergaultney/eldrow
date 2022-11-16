@@ -72,6 +72,18 @@ def answer(solution: str, guess: str) -> str:
 # best_elim 1 1200
 
 
+def make_options(
+    alpha: ty.Set[str],
+    word_list: ty.Collection[str],
+    guesses: ty.Sequence[str],
+):
+    def options_after_guess(solution: str, guess: str) -> List[str]:
+        constraint = given2(*(*guesses, answer(solution, guess)), alpha=alpha, empty_n=len(guess))
+        return options(regexes2(constraint), wl=word_list)
+
+    return options_after_guess
+
+
 def elimination_scorer(
     remaining_possibilities: ty.Collection[str],
     options_after_guess: Callable[[str, str], ty.List[str]],
@@ -94,20 +106,11 @@ def elimination_scorer(
         new_word_to_score = words[-1]
         total_eliminated = 0
         for assumed_solution in remaining_possibilities:
-            num_left = len(options_after_guess(assumed_solution, new_word_to_score))
+            if assumed_solution == new_word_to_score:
+                num_left = 0
+            else:
+                num_left = len(options_after_guess(assumed_solution, new_word_to_score))
             total_eliminated += len(remaining_possibilities) - num_left
         return round(total_eliminated / len(remaining_possibilities), 3)
 
     return scorer
-
-
-def make_options(
-    alpha: ty.Set[str],
-    word_list: ty.Collection[str],
-    guesses: ty.Sequence[str],
-):
-    def options_after_guess(solution: str, guess: str) -> List[str]:
-        constraint = given2(*(*guesses, answer(solution, guess)), alpha=alpha, empty_n=len(guess))
-        return options(regexes2(constraint), wl=word_list)
-
-    return options_after_guess

@@ -25,7 +25,7 @@ def kill_words(*words: str) -> None:
 
 def _p(game: Game, multiline: bool = False):
     if multiline:
-        return '\n        '.join(['', *colors.colorize(*game.guesses)])
+        return "\n        ".join(["", *colors.colorize(*game.guesses)])
     return "  ".join(colors.colorize(*game.guesses))
 
 
@@ -102,7 +102,9 @@ class IpythonCli(Magics):
         for i in range(1, num + 1):
             self._new_game(i)
             self.games[i].solution = random.choice(sols)
-        assert len(self.games) == len({g.solution for g in self.games.values()}), "Try again - we picked the same word multiple times"
+        assert len(self.games) == len(
+            {g.solution for g in self.games.values()}
+        ), "Try again - we picked the same word multiple times"
 
     @line_magic
     def record(self, _):
@@ -176,17 +178,27 @@ class IpythonCli(Magics):
 
     @line_magic
     def x(self, idea_line):
-        game, idea = self._prs(idea_line)
+        """Explore."""
+        game, ideas_s = self._prs(idea_line)
         options = set(get_options(game))
-        exploration = explore(list(options), idea.strip(), game.possibilities)
-        if (
-            len(exploration) == 1
-            and exploration[0] in options
-            and exploration[0] not in game.possibilities
-        ):
-            game.possibilities.append(exploration[0])
+        successes = list()
+        exps = list()
+        ideas = ideas_s.strip().split()
+        ideas = ideas or [""]
+        for idea in ideas:
+            exploration = explore(list(options), idea, game.possibilities)
+            exps.append(exploration)
+            if (
+                len(exploration) == 1
+                and exploration[0] in options
+                and exploration[0] not in game.possibilities
+            ):
+                game.possibilities.append(exploration[0])
+                successes.append(exploration[0])
+
+        if successes:
             self._summarize(game)
-        return exploration
+        return exps[0] if len(exps) == 1 else exps
 
     @line_magic
     def o(self, line):
@@ -253,6 +265,10 @@ class IpythonCli(Magics):
         return self._best_elim(game, None, int(limit) if limit else 300)
 
     @line_magic
+    def be(self, limit):
+        return self.best_elim(limit)
+
+    @line_magic
     def bootstrap(self, line):
         self.reset(None)
         guesses = line.split(" ")
@@ -302,7 +318,7 @@ class IpythonCli(Magics):
         game, count = self._prs(line)
         for _ in range(int(count) if count else 1):
             game.guesses.pop()
-        return self.g('')
+        return self.g("")
 
     @line_magic
     def scores(self, line):
