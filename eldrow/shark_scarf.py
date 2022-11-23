@@ -83,6 +83,7 @@ def shark_scarf_paths(pattern: str, shark_scarf: ty.Collection[str]) -> ty.Itera
 
 class PathStats(ty.NamedTuple):
     avg: float
+    median: float
     best: ty.Tuple[float, ty.Tuple[str, ...]]
     worst: ty.Tuple[float, ty.Tuple[str, ...]]
 
@@ -93,8 +94,10 @@ def best_worst_avg(paths: ty.Sequence[Path]) -> PathStats:
     worst_l = list()
     best = 100000.0
     best_l = list()
+    all_scores: ty.List[float] = list()
 
     for p in paths:
+        all_scores.append(p.best_word_elim.elim_score)
         if p.best_word_elim.elim_score > worst:
             worst_l = [p.guess]
             worst = p.best_word_elim.elim_score
@@ -107,8 +110,17 @@ def best_worst_avg(paths: ty.Sequence[Path]) -> PathStats:
         elif p.best_word_elim.elim_score == best:
             best_l.append(p.guess)
 
+    all_scores = sorted(all_scores)
+
+    def median() -> float:
+        midpoint = len(all_scores) // 2
+        if len(all_scores) % 2 == 1:
+            return all_scores[midpoint]
+        return (all_scores[midpoint] + all_scores[midpoint - 1]) / 2
+
     return PathStats(
         avg,
+        round(median(), 2),
         (best, tuple(best_l)),
         (worst, tuple(worst_l)),
     )
