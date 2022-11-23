@@ -176,17 +176,15 @@ class IpythonCli(Magics):
         game.guesses = list()
         self._guess(game, line)
 
-    @line_magic
-    def x(self, idea_line):
-        """Explore."""
+    def _x(self, idea_line, reveal: bool = False):
         game, ideas_s = self._prs(idea_line)
+        ideas = ideas_s.strip().split()
+        ideas = ideas or [""]
         options = set(get_options(game))
         successes = list()
         exps = list()
-        ideas = ideas_s.strip().split()
-        ideas = ideas or [""]
         for idea in ideas:
-            exploration = explore(list(options), idea, game.possibilities)
+            exploration = explore(list(options), idea, game.possibilities, reveal=reveal)
             exps.append(exploration)
             if (
                 len(exploration) == 1
@@ -199,6 +197,15 @@ class IpythonCli(Magics):
         if successes:
             self._summarize(game)
         return exps[0] if len(exps) == 1 else exps
+
+    @line_magic
+    def x(self, idea_line):
+        """Explore."""
+        return self._x(idea_line)
+
+    @line_magic
+    def z(self, idea_line):
+        return self._x(idea_line, reveal=True)
 
     @line_magic
     def o(self, line):

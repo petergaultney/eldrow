@@ -100,9 +100,14 @@ def novel_or_option(game: Game, options: ty.Collection[str], limit: int) -> ty.S
     return set([res[1] for res in best_novelty(game)[-limit:]]) | set(itertools.islice(options, limit))
 
 
-def best_elim(
-    game: Game, wordlist: ty.Collection[str] = tuple(), limit: int = 30
-) -> ty.List[ty.Tuple[float, float, bool, str]]:
+class WordElim(ty.NamedTuple):
+    elim_score: float
+    novelty_score: float
+    is_possible_solution: bool
+    scored_word: str
+
+
+def best_elim(game: Game, wordlist: ty.Collection[str] = tuple(), limit: int = 30) -> ty.List[WordElim]:
     limit = limit or 30
     opts = get_options(game)
     novelty_scorer = _novelty_scorer(game)
@@ -120,7 +125,7 @@ def best_elim(
     return sort_many(
         [by_novelty_score, by_is_option, by_elim_score],
         [
-            (score, novelty_scorer(*simple_guesses, word), word in opts, word)
+            WordElim(score, novelty_scorer(*simple_guesses, word), word in opts, word)
             for score, word in best_next_score(
                 wordlist or novel_or_option(game, opts, limit),
                 *list(map(guess_to_word, game.guesses)),

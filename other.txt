@@ -84,3 +84,4 @@ prion
 auger
 swipe
 canto
+strum
