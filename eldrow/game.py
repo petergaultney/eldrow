@@ -17,7 +17,7 @@ from .scoring import (
 @dataclass
 class Game:
     n: int
-    wl: ty.List[str]
+    wl: ty.Tuple[str, ...]
     alpha: ty.Set[str]
     solution: str
     guesses: ty.List[str]
@@ -25,7 +25,7 @@ class Game:
     ignored: ty.Set[str]
 
 
-def new_game(alpha, wl) -> Game:
+def new_game(alpha, wl: ty.Tuple[str, ...]) -> Game:
     return Game(len(wl[0]), wl, alpha, "", list(), list(), set())
 
 
@@ -42,8 +42,8 @@ def letters(game: Game) -> ty.List[str]:
     return sorted({c.upper() for allowed in pos_allowed.values() for c in allowed})
 
 
-def get_options(game: Game) -> ty.List[str]:
-    return [w for w in options(regexes2(_given(game)), wl=game.wl) if w not in game.ignored]
+def get_options(game: Game) -> ty.Tuple[str, ...]:
+    return tuple([w for w in options(regexes2(_given(game)), wl=game.wl) if w not in game.ignored])
 
 
 def unparse(game: Game, guess: str) -> str:

@@ -5,7 +5,6 @@ from multiprocessing import Pool
 
 from .elimination import elimination_scorer, make_options
 from .game import Game, get_options, novel_or_option, novelty
-from .colors import colorize
 
 
 class CrossElim(ty.NamedTuple):
@@ -35,8 +34,7 @@ def caching_cross_elim_for_guesses_and_word(game: Game) -> CrossElim:
 
 def elim_game(candidates: ty.Collection[str], key: str, game: Game) -> ty.Dict[str, CrossElim]:
     opts = set(get_options(game))
-    print(key, " ".join(colorize(*game.guesses)))
-    elim_scorer = elimination_scorer(opts, make_options(game.alpha, opts, game.guesses))
+    elim_scorer = elimination_scorer(opts, make_options(game.alpha, tuple(opts), game.guesses))
     cross_game_elimination_multipliers = dict()
     for word in candidates:
         elim_count = elim_scorer(word)
@@ -53,6 +51,18 @@ def _p_elim_game(
     candidates: ty.Collection[str], key_game: ty.Tuple[str, Game]
 ) -> ty.Dict[str, CrossElim]:
     return elim_game(candidates, *key_game)
+
+    # import cProfile
+
+    # key, game = key_game
+    # res = None
+
+    # def profile():
+    #     nonlocal res
+    #     res = elim_game(candidates, *key_game)
+
+    # cProfile.runctx("profile()", globals(), locals(), f"prof{key}.prof")
+    # return res
 
 
 def elim_across_games(

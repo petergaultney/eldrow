@@ -158,11 +158,14 @@ class IpythonCli(Magics):
             if guess:
                 if game.solution:
                     guess = unparse(game, guess)
-                if guess_to_word(guess) not in five_letter_word_list:
+                guess_word = guess_to_word(guess)
+                if guess_word not in five_letter_word_list:
                     return None
                 if guess not in game.guesses:
                     game.guesses.append(guess)
                 if len(guess) == self.n and guess.upper() == guess:
+                    if guess_word not in game.possibilities:
+                        game.possibilities.append(guess_word)
                     print("\nSUCCESS!! Don't forget to %record this result!\n")
         return self._summarize(game)
 

@@ -1,6 +1,7 @@
 import typing as ty
-from typing import Sequence, Collection, List, Callable
+from typing import List, Callable
 from collections import defaultdict
+from functools import cache
 import re
 
 from .parse import guess_to_word
@@ -9,9 +10,15 @@ from .scoring import Scorer
 from .constrain import given2, regexes2
 
 
-def options(regex_strs: Sequence[str], wl: Collection[str] = five_letter_word_list) -> List[str]:
+@cache
+def compile(regex_str: str):
+    return re.compile(regex_str)
+
+
+@cache
+def options(regex_strs: ty.Tuple[str, ...], wl: ty.Tuple[str, ...] = five_letter_word_list) -> List[str]:
     opts = list()
-    regexes = tuple(re.compile(regex_str) for regex_str in regex_strs)
+    regexes = tuple(compile(regex_str) for regex_str in regex_strs)
     for w in wl:
         allowed = True
         for regex in regexes:
@@ -74,7 +81,7 @@ def answer(solution: str, guess: str) -> str:
 
 def make_options(
     alpha: ty.Set[str],
-    word_list: ty.Collection[str],
+    word_list: ty.Tuple[str, ...],
     guesses: ty.Sequence[str],
 ):
     def options_after_guess(solution: str, guess: str) -> List[str]:

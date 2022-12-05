@@ -16,7 +16,7 @@ def _xf_dict_vals(xf, d):
     return {k: xf(v) for k, v in d.items()}
 
 
-def construct_position_freqs(word_list: List[str], decimal_points=5) -> PositionScores:
+def construct_position_freqs(word_list: Tuple[str, ...], decimal_points=5) -> PositionScores:
     counts = defaultdict(lambda: defaultdict(int))
     for word in word_list:
         for i, char in enumerate(word):
@@ -91,8 +91,10 @@ def score_for_novelty(position_scores: dict = position_scores) -> Scorer:
     return _score_for_novelty
 
 
-def high_score_tuples(word_list: list = five_letter_word_list, n: int = 2) -> List[Tuple[int, str, str]]:
-    scored = list()
+def high_score_tuples(
+    word_list: Tuple[str, ...] = five_letter_word_list, n: int = 2
+) -> List[Tuple[int, str, str]]:
+    scored: List[Tuple[int, str, str]] = list()
     for words in combinations(word_list, n):
         score = score_for_novelty()(*words)
         scored.append((score, *words))
