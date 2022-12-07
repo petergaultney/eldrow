@@ -41,7 +41,7 @@ def elim_game(candidates: ty.Collection[str], key: str, game: Game) -> ty.Dict[s
         game_elim_ratio = (elim_count + 1) / len(opts)
         cross_game_elimination_multipliers[word] = CrossElim(
             (game_elim_ratio if len(opts) != 1 else 1.0),
-            {key} if elim_count == len(opts) - 1 else set(),
+            {key} if elim_count >= len(opts) - 1 else set(),
             {key} if word in opts else set(),
         )
     return cross_game_elimination_multipliers
@@ -66,14 +66,17 @@ def _p_elim_game(
 
 
 def elim_across_games(
-    games: ty.Dict[ty.Any, Game], limit: int, add_to_wordlist: ty.Collection[str] = tuple()
+    games: ty.Dict[ty.Any, Game],
+    limit: int,
+    only_options: bool = False,
 ) -> ty.List[ty.Tuple[str, CrossElim]]:
     wordlist = set()
-    game_options = dict()
     for key, game in games.items():
-        game_options[key] = set(get_options(game))
-        wordlist |= novel_or_option(game, game_options[key], limit)
-    wordlist |= set(add_to_wordlist)
+        game_options = set(get_options(game))
+        if not only_options:
+            wordlist |= novel_or_option(game, game_options, limit)
+        else:
+            wordlist |= game_options
     cross_game_novelty_scores: ty.Dict[str, float] = defaultdict(float)
     for game in games.values():
         w_n = novelty(game, *wordlist)

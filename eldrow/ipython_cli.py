@@ -298,13 +298,16 @@ class IpythonCli(Magics):
     def cross(self, line):
         """Cross-elimination uses all games to find a good next guess"""
 
-        def parse_cross() -> tuple[int, tuple[str, ...]]:
+        def parse_cross() -> int | None:
             bits = line.split()
             if bits:
-                return int(bits[0]), bits[1:]
-            return 100, tuple()
+                try:
+                    return int(bits[0])
+                except ValueError:
+                    return None
+            return 1000
 
-        num_to_test, other_words = parse_cross()
+        num_to_test = parse_cross()
 
         def fmt_ce(ce):
             solutions = "".join(["🟩" if k in ce.solved else "⬛" for k in self.games.keys()])
@@ -313,9 +316,9 @@ class IpythonCli(Magics):
 
         return [
             (w, *fmt_ce(ce))
-            for w, ce in elim_across_games(self.games, num_to_test, add_to_wordlist=other_words)[
-                -self.limit :
-            ]
+            for w, ce in elim_across_games(
+                self.games, num_to_test or 1000, only_options=num_to_test is None
+            )[-self.limit :]
         ]
 
     @line_magic
