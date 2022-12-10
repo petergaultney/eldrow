@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Tuple
+from typing import List, Tuple, Collection
 import json
 import random
 import re
@@ -13,7 +13,7 @@ from .explore import explore
 from .scoring import construct_position_freqs, score_words
 from .words import five_letter_word_list, sols
 from .game import best_elim, best_options, Game, novelty, new_game, letters, get_options, unparse
-from .multi import elim_across_games
+from .multi import elim_across_games, best_novelty_words_across_games, all_options, all_novel
 
 
 def kill_words(*words: str) -> None:
@@ -298,16 +298,33 @@ class IpythonCli(Magics):
     def cross(self, line):
         """Cross-elimination uses all games to find a good next guess"""
 
-        def parse_cross() -> int | None:
-            bits = line.split()
-            if bits:
-                try:
-                    return int(bits[0])
-                except ValueError:
-                    return None
-            return 1000
+        games = list(self.games.values())
 
-        num_to_test = parse_cross()
+        def parse_wordlist() -> Collection[str]:
+            bits = line.split()
+            if not bits:
+                return best_novelty_words_across_games(games, 1000, all_novel(1000, *games))
+
+            instruction = bits[0]
+            if instruction == "opts":
+                return best_novelty_words_across_games(games, 1000, all_options(*games))
+            if instruction == "ALL":
+                if len(bits) > 1:
+                    try:
+                        return best_novelty_words_across_games(
+                            games, int(bits[1]), five_letter_word_list
+                        )
+                    except ValueError:
+                        pass
+                return five_letter_word_list
+            try:
+                novel_limit = int(instruction)
+                return best_novelty_words_across_games(
+                    games, novel_limit, all_novel(novel_limit, *games)
+                )
+            except ValueError:
+                pass
+            return bits.split(" ")
 
         def fmt_ce(ce):
             solutions = "".join(["🟩" if k in ce.solved else "⬛" for k in self.games.keys()])
@@ -315,10 +332,7 @@ class IpythonCli(Magics):
             return (f"{ce.elim_ratio:8.3f}", solutions, options)
 
         return [
-            (w, *fmt_ce(ce))
-            for w, ce in elim_across_games(
-                self.games, num_to_test or 1000, only_options=num_to_test is None
-            )[-self.limit :]
+            (w, *fmt_ce(ce)) for w, ce in elim_across_games(self.games, parse_wordlist())[-self.limit :]
         ]
 
     @line_magic

@@ -65,31 +65,43 @@ def _p_elim_game(
     # return res
 
 
-def elim_across_games(
-    games: ty.Dict[ty.Any, Game],
-    limit: int,
-    only_options: bool = False,
-) -> ty.List[ty.Tuple[str, CrossElim]]:
+def all_options(*games: Game) -> ty.Set[str]:
     wordlist = set()
-    for key, game in games.items():
+    for game in games:
+        wordlist |= set(get_options(game))
+    return wordlist
+
+
+def all_novel(limit: int, *games: Game) -> ty.Set[str]:
+    wordlist = set()
+    for game in games:
         game_options = set(get_options(game))
-        if not only_options:
-            wordlist |= novel_or_option(game, game_options, limit)
-        else:
-            wordlist |= game_options
+        wordlist |= novel_or_option(game, game_options, limit)
+    return wordlist
+
+
+def best_novelty_words_across_games(
+    games: ty.Collection[Game],
+    limit: int,
+    wordlist: ty.Collection[str],
+) -> ty.List[str]:
     cross_game_novelty_scores: ty.Dict[str, float] = defaultdict(float)
-    for game in games.values():
+    for game in games:
         w_n = novelty(game, *wordlist)
         for word, n in w_n:
             cross_game_novelty_scores[word] += n
 
-    best_novelty_words = [
-        w for w, s in sorted(cross_game_novelty_scores.items(), key=lambda t: t[1], reverse=True)
-    ][:limit]
+    return [w for w, s in sorted(cross_game_novelty_scores.items(), key=lambda t: t[1], reverse=True)][
+        :limit
+    ]
 
+
+def elim_across_games(
+    games: ty.Dict[ty.Any, Game], wordlist: ty.Collection[str]
+) -> ty.List[ty.Tuple[str, CrossElim]]:
     with Pool(len(games)) as pool:
         cross_game_elimination_multipliers = reduce(
-            _merge_cross_elims, pool.map(partial(_p_elim_game, best_novelty_words), games.items())
+            _merge_cross_elims, pool.map(partial(_p_elim_game, wordlist), games.items())
         )
 
     sorted_by_options = sorted(
