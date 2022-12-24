@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Tuple, Collection
+from typing import List, Tuple, Collection, Callable, Dict
 import json
 import random
 import re
@@ -12,7 +12,18 @@ from .constrain import ALPHA, guess_to_word
 from .explore import explore
 from .scoring import construct_position_freqs, score_words
 from .words import five_letter_word_list, sols
-from .game import best_elim, best_options, Game, novelty, new_game, letters, get_options, unparse
+from .game import (
+    best_elim,
+    best_options,
+    Game,
+    novelty,
+    new_game,
+    letters,
+    get_options,
+    unparse,
+    novel_or_option,
+    best_novelty,
+)
 from .multi import elim_across_games, best_novelty_words_across_games, all_options, all_novel
 
 
@@ -39,6 +50,52 @@ def _game_color(opts: int, poss: int) -> str:
     return colors.CEND
 
 
+def _int(s: str) -> None | int:
+    try:
+        return int(s)
+    except ValueError:
+        return None
+
+
+def _instruction_line_to_chosen_wordlist(
+    line: str, default: Callable[..., List[str]], **named: Callable[..., List[str]]
+) -> List[str]:
+    bits = line.split()
+    if not bits:
+        return default()
+
+    limit = _int(bits[0])
+    if limit is not None:
+        return default(limit)
+
+    name = bits[0].lower()
+    if name not in named:
+        return bits
+
+    args = list()
+    if len(bits) == 2:
+        limit = _int(bits[1])
+        if limit is not None:
+            args.append(limit)
+
+    return named[name](*args)
+
+
+def _all_or_opts_wordlist_creators(games: Collection[Game]) -> Dict[str, Callable[..., List[str]]]:
+    def best_nov(limit: int = 1000):
+        return best_novelty_words_across_games(games, limit, all_novel(limit, *games))
+
+    def best_opts(limit: int = 1000):
+        return best_novelty_words_across_games(games, limit, all_options(*games))
+
+    def best_all(limit: int = 0):
+        if not limit:
+            return five_letter_word_list
+        return best_novelty_words_across_games(games, limit, five_letter_word_list)
+
+    return dict(default=best_nov, all=best_all, opts=best_opts)
+
+
 @magics_class
 class IpythonCli(Magics):
     def __init__(self, shell, guesses: List[str] = list()):
@@ -61,10 +118,11 @@ class IpythonCli(Magics):
         m = re.match(r"^\s*(\d+)(.*)", line or "")
         if m:
             game_number = int(m.group(1))
-            self.game_key = game_number
-            if game_number not in self.games:
-                self._new_game(game_number)  # create new game
-            return self.games[game_number], m.group(2).strip()
+            if game_number < 17:
+                self.game_key = game_number
+                if game_number not in self.games:
+                    self._new_game(game_number)  # create new game
+                return self.games[game_number], m.group(2).strip()
         return self.games[self.game_key], line.strip()
 
     @line_magic
@@ -253,7 +311,7 @@ class IpythonCli(Magics):
         words = words.split()
         return [(score, word) for score, word in zip(novelty(game, *words), words)]
 
-    def _best_elim(self, game, wl, limit: int = 300):
+    def _best_elim(self, game, wordlist):
         self._summarize(game)
 
         def fmt3(f):
@@ -261,18 +319,25 @@ class IpythonCli(Magics):
 
         return [
             (fmt3(t[0]), fmt3(t[1]), "🟨" if t[2] else "⬛", t[3])
-            for t in best_elim(game, wl, limit)[-self.limit :]
+            for t in best_elim(game, wordlist)[-self.limit :]
         ]
 
     @line_magic
-    def best_elim(self, limit):
+    def best_elim(self, line):
         """Limit in this case only calculates against the first N words as
         scored by the best_novelty scorer.  This algorithm is N**2 and
         very expensive, so it generally shouldn't be run against lots
         of options.
         """
-        game, limit = self._prs(limit)
-        return self._best_elim(game, None, int(limit) if limit else 300)
+        game, limit_instr = self._prs(line)
+
+        return self._best_elim(
+            game,
+            _instruction_line_to_chosen_wordlist(
+                limit_instr,
+                **_all_or_opts_wordlist_creators([game])
+            )
+        )
 
     @line_magic
     def be(self, limit):
@@ -300,45 +365,19 @@ class IpythonCli(Magics):
 
         games = list(self.games.values())
 
-        def parse_wordlist() -> Collection[str]:
-            bits = line.split()
-            if not bits:
-                return best_novelty_words_across_games(games, 1000, all_novel(1000, *games))
-
-            instruction = bits[0]
-            if instruction == "opts":
-                return best_novelty_words_across_games(games, 1000, all_options(*games))
-            if instruction == "ALL":
-                if len(bits) > 1:
-                    try:
-                        return best_novelty_words_across_games(
-                            games, int(bits[1]), five_letter_word_list
-                        )
-                    except ValueError:
-                        pass
-                return five_letter_word_list
-            try:
-                novel_limit = int(instruction)
-                return best_novelty_words_across_games(
-                    games, novel_limit, all_novel(novel_limit, *games)
-                )
-            except ValueError:
-                pass
-            return bits.split(" ")
+        wordlist = _instruction_line_to_chosen_wordlist(line, **_all_or_opts_wordlist_creators(games))
 
         def fmt_ce(ce):
             solutions = "".join(["🟩" if k in ce.solved else "⬛" for k in self.games.keys()])
             options = "".join(["🟨" if k in ce.option else "⬛" for k in self.games.keys()])
             return (f"{ce.elim_ratio:8.3f}", solutions, options)
 
-        return [
-            (w, *fmt_ce(ce)) for w, ce in elim_across_games(self.games, parse_wordlist())[-self.limit :]
-        ]
+        return [(w, *fmt_ce(ce)) for w, ce in elim_across_games(self.games, wordlist)[-self.limit :]]
 
     @line_magic
     def elim(self, words):
         game, words = self._prs(words)
-        return self._best_elim(game, wl=words.split())
+        return self._best_elim(game, words.split())
 
     @line_magic
     def pop(self, line):

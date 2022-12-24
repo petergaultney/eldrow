@@ -104,9 +104,12 @@ def elim_across_games(
             _merge_cross_elims, pool.map(partial(_p_elim_game, wordlist), games.items())
         )
 
-    sorted_by_options = sorted(
-        cross_game_elimination_multipliers.items(), key=lambda kv: len(kv[1].option)
+    game_wordlist = set(list(games.values())[0].wl)
+    words_onto_cross_elims = cross_game_elimination_multipliers.items()
+    sorted_by_in_wl = sorted(
+        words_onto_cross_elims, key=lambda w_ce: 1 if w_ce[0] in game_wordlist else 0
     )
+    sorted_by_options = sorted(sorted_by_in_wl, key=lambda kv: len(kv[1].option))
     sorted_by_solving = sorted(sorted_by_options, key=lambda kv: len(kv[1].solved))
     return sorted(
         sorted_by_solving, key=lambda kv: (len(kv[1].solved), kv[1].elim_ratio, len(kv[1].option))

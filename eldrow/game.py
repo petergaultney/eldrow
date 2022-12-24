@@ -107,8 +107,7 @@ class WordElim(ty.NamedTuple):
     scored_word: str
 
 
-def best_elim(game: Game, wordlist: ty.Collection[str] = tuple(), limit: int = 30) -> ty.List[WordElim]:
-    limit = limit or 30
+def best_elim(game: Game, wordlist: ty.Collection[str]) -> ty.List[WordElim]:
     opts = get_options(game)
     novelty_scorer = _novelty_scorer(game)
     simple_guesses = _simple_words(*game.guesses)
@@ -127,7 +126,7 @@ def best_elim(game: Game, wordlist: ty.Collection[str] = tuple(), limit: int = 3
         [
             WordElim(score, novelty_scorer(*simple_guesses, word), word in opts, word)
             for score, word in best_next_score(
-                wordlist or novel_or_option(game, opts, limit),
+                wordlist,
                 *list(map(guess_to_word, game.guesses)),
                 scorer=elimination_scorer(
                     opts,

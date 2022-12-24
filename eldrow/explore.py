@@ -9,8 +9,7 @@ def explore(
     already_explored: ty.Collection[str] = tuple(),
     reveal: bool = False,
 ) -> ty.List[str]:
-    if not idea:
-        idea = "." * len(options[0])
+    idea += "." * (len(options[0]) - len(idea))
 
     def _():
         for w in options:
