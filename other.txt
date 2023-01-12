@@ -86,3 +86,4 @@ swipe
 canto
 strum
 saber
+sheaf

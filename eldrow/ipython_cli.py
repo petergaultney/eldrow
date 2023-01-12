@@ -82,7 +82,7 @@ def _instruction_line_to_chosen_wordlist(
 
 
 def _all_or_opts_wordlist_creators(games: Collection[Game]) -> Dict[str, Callable[..., List[str]]]:
-    def best_nov(limit: int = 1000):
+    def best_sols(limit: int = 1000):
         return best_novelty_words_across_games(games, limit, all_novel(limit, *games))
 
     def best_opts(limit: int = 1000):
@@ -93,7 +93,7 @@ def _all_or_opts_wordlist_creators(games: Collection[Game]) -> Dict[str, Callabl
             return five_letter_word_list
         return best_novelty_words_across_games(games, limit, five_letter_word_list)
 
-    return dict(default=best_nov, all=best_all, opts=best_opts)
+    return dict(default=best_all, sols=best_sols, opts=best_opts)
 
 
 @magics_class
