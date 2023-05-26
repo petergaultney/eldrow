@@ -12,6 +12,7 @@ sb = str | bytes
 
 
 assert sys.flags.hash_randomization == 0, "hash randomization must be disabled for memoization to work"
+assert hash((1,)) == -6644214454873602895, "hash seed must be 0"
 
 
 class Memoizing:
