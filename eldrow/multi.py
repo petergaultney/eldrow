@@ -1,6 +1,6 @@
 import typing as ty
 from collections import defaultdict
-from functools import reduce, partial
+from functools import partial, reduce
 from multiprocessing import Pool
 
 from .elimination import elimination_scorer, make_options
@@ -32,6 +32,9 @@ def caching_cross_elim_for_guesses_and_word(game: Game) -> CrossElim:
     pass
 
 
+# TODO this is the one to cache using dbm.
+# remove key and most parts of game, and also get rid of candidates,
+# so that we have fewer things to hash.
 def elim_game(candidates: ty.Collection[str], key: str, game: Game) -> ty.Dict[str, CrossElim]:
     opts = set(get_options(game))
     elim_scorer = elimination_scorer(opts, make_options(game.alpha, tuple(opts), game.guesses))

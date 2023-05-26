@@ -1,30 +1,20 @@
-from __future__ import annotations
-from typing import List, Tuple, Collection, Callable, Dict
+import getpass
 import json
 import random
 import re
+from typing import Callable, Collection
 
-import getpass
-from IPython.core.magic import Magics, magics_class, line_magic
+from IPython.core.magic import Magics, line_magic, magics_class
 
 from . import colors
 from .constrain import ALPHA, guess_to_word
 from .explore import explore
+from .game import (Game, best_elim, best_options, get_options, letters,
+                   new_game, novelty, unparse)
+from .multi import (all_novel, all_options, best_novelty_words_across_games,
+                    elim_across_games)
 from .scoring import construct_position_freqs, score_words
 from .words import five_letter_word_list, sols
-from .game import (
-    best_elim,
-    best_options,
-    Game,
-    novelty,
-    new_game,
-    letters,
-    get_options,
-    unparse,
-    novel_or_option,
-    best_novelty,
-)
-from .multi import elim_across_games, best_novelty_words_across_games, all_options, all_novel
 
 
 def kill_words(*words: str) -> None:
@@ -58,8 +48,8 @@ def _int(s: str) -> None | int:
 
 
 def _instruction_line_to_chosen_wordlist(
-    line: str, default: Callable[..., List[str]], **named: Callable[..., List[str]]
-) -> List[str]:
+    line: str, default: Callable[..., list[str]], **named: Callable[..., list[str]]
+) -> list[str]:
     bits = line.split()
     if not bits:
         return default()
@@ -81,7 +71,7 @@ def _instruction_line_to_chosen_wordlist(
     return named[name](*args)
 
 
-def _all_or_opts_wordlist_creators(games: Collection[Game]) -> Dict[str, Callable[..., List[str]]]:
+def _all_or_opts_wordlist_creators(games: Collection[Game]) -> dict[str, Callable[..., list[str]]]:
     def best_sols(limit: int = 1000):
         return best_novelty_words_across_games(games, limit, all_novel(limit, *games))
 
@@ -98,7 +88,7 @@ def _all_or_opts_wordlist_creators(games: Collection[Game]) -> Dict[str, Callabl
 
 @magics_class
 class IpythonCli(Magics):
-    def __init__(self, shell, guesses: List[str] = list()):
+    def __init__(self, shell, guesses: list[str] = list()):
         # You must call the parent constructor
         super().__init__(shell)
         self.limit = 15
@@ -114,7 +104,7 @@ class IpythonCli(Magics):
         self.games[index] = game
         return game
 
-    def _prs(self, line) -> Tuple[Game, str]:
+    def _prs(self, line) -> tuple[Game, str]:
         m = re.match(r"^\s*(\d+)(.*)", line or "")
         if m:
             game_number = int(m.group(1))
@@ -333,10 +323,7 @@ class IpythonCli(Magics):
 
         return self._best_elim(
             game,
-            _instruction_line_to_chosen_wordlist(
-                limit_instr,
-                **_all_or_opts_wordlist_creators([game])
-            )
+            _instruction_line_to_chosen_wordlist(limit_instr, **_all_or_opts_wordlist_creators([game])),
         )
 
     @line_magic
