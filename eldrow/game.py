@@ -1,16 +1,16 @@
-import typing as ty
 import itertools
+import typing as ty
 from dataclasses import dataclass
 
 from .constrain import given2, regexes2
-from .elimination import answer, options, elimination_scorer, make_options
+from .elimination import answer, elimination_scorer, make_options, options
 from .parse import guess_to_word
 from .scoring import (
     best_next_score,
-    score_words,
-    score_for_novelty,
-    replace_solved_with_average_totals,
     construct_position_freqs,
+    replace_solved_with_average_totals,
+    score_for_novelty,
+    score_words,
 )
 
 

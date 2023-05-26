@@ -21,6 +21,10 @@ build-backend = "poetry.core.masonry.api"
 [tool.black]
 line-length = 105
 
+[tool.isort]
+profile = "black"
+line_length = 105
+
 [tool.mypy]
 python_version = 3.8
 mypy_path = "eldrow"

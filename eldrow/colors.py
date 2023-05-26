@@ -1,4 +1,5 @@
 from typing import List
+
 from .constrain import parse
 
 CGREEN = "\33[32m"

@@ -1,7 +1,7 @@
-from eldrow.constrain import constraint, ALPHA, given2, merge_constraints
+import eldrow.game as g
+from eldrow.constrain import ALPHA, constraint, given2, merge_constraints
 from eldrow.explore import explore
 from eldrow.game import Game, best_elim
-import eldrow.game as g
 from eldrow.words import sols
 
 

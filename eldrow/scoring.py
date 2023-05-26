@@ -1,9 +1,8 @@
-from typing import Dict, List, Callable, Tuple, Collection
-from itertools import combinations
 from collections import defaultdict
+from itertools import combinations
+from typing import Callable, Collection, Dict, List, Tuple
 
 from .words import five_letter_word_list
-
 
 PositionScores = Dict[int, Dict[str, int]]
 

@@ -3,8 +3,8 @@ import typing as ty
 from collections import defaultdict
 from copy import deepcopy
 
-from .parse import paren_yellow_parse as parse, guess_to_word
-
+from .parse import guess_to_word
+from .parse import paren_yellow_parse as parse
 
 ALPHA = set(string.ascii_lowercase)
 

@@ -2,10 +2,9 @@ import typing as ty
 from collections import defaultdict
 from itertools import combinations
 
-from .words import sols
 from .constrain import ALPHA
-from .game import best_elim, new_game, WordElim
-
+from .game import WordElim, best_elim, new_game
+from .words import sols
 
 _COMBS = dict()
 

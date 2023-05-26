@@ -9,10 +9,8 @@ from IPython.core.magic import Magics, line_magic, magics_class
 from . import colors
 from .constrain import ALPHA, guess_to_word
 from .explore import explore
-from .game import (Game, best_elim, best_options, get_options, letters,
-                   new_game, novelty, unparse)
-from .multi import (all_novel, all_options, best_novelty_words_across_games,
-                    elim_across_games)
+from .game import Game, best_elim, best_options, get_options, letters, new_game, novelty, unparse
+from .multi import all_novel, all_options, best_novelty_words_across_games, elim_across_games
 from .scoring import construct_position_freqs, score_words
 from .words import five_letter_word_list, sols
 

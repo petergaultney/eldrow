@@ -1,13 +1,13 @@
+import re
 import typing as ty
-from typing import List, Callable
 from collections import defaultdict
 from functools import cache
-import re
+from typing import Callable, List
 
-from .parse import guess_to_word
-from .words import five_letter_word_list
-from .scoring import Scorer
 from .constrain import given2, regexes2
+from .parse import guess_to_word
+from .scoring import Scorer
+from .words import five_letter_word_list
 
 
 @cache

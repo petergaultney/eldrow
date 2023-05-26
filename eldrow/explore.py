@@ -1,6 +1,6 @@
 import typing as ty
 
-from .game import Game, get_options, _given
+from .game import Game, _given, get_options
 
 
 def explore(

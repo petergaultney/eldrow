@@ -1,6 +1,5 @@
-import typing as ty
 import string
-
+import typing as ty
 
 POS_TYPE = ty.Literal[
     "green",
@@ -43,4 +42,3 @@ def paren_yellow_parse(guess: str) -> ty.Tuple[Pos, ...]:
 
 def guess_to_word(guess: str) -> str:
     return guess.replace("(", "").replace(")", "").replace(".", "").lower()
-
