@@ -10,6 +10,43 @@ DecoFactory = ty.Callable[..., Deco]
 sb = str | bytes
 
 
+class Memoizing:
+    def __init__(self, db: ty.MutableMapping[sb, bytes], base_hash: ty.Hashable, f: F):
+        self.db = db
+        self.base_hash = base_hash
+        self.f = f
+
+        self._misses = 0
+        self._tot = 0
+
+    def __call__(self, *args, **kwargs):
+        self._tot += 1
+        db, base_hash, f = self.db, self.base_hash, self.f
+        try:
+            tup = (args, tuple(kwargs.items()))
+            if base_hash is not None:
+                tup = (base_hash, *tup)  # type: ignore
+            composite_hash = str(hash(tup))
+        except TypeError:
+            print("Failed to hash: ", args, kwargs)
+            raise
+        try:
+            return db[composite_hash]
+        except KeyError:
+            result = f(*args, **kwargs)
+            db[composite_hash] = result
+            self._misses += 1
+            return result
+
+    @property
+    def hits(self) -> int:
+        return self._tot - self._misses
+
+    @property
+    def hit_rate(self) -> float:
+        return self.hits / self._tot
+
+
 def pickle_cache(db: ty.MutableMapping[sb, bytes]) -> DecoFactory:
     """Memoize very expensive functions across multiple runs of the
     same program.
@@ -26,24 +63,7 @@ def pickle_cache(db: ty.MutableMapping[sb, bytes]) -> DecoFactory:
             base_hash = None
 
         def deco(f: F) -> F:
-            @wraps(f)
-            def wrapper(*args, **kwargs):
-                try:
-                    tup = (args, tuple(kwargs.items()))
-                    if base_hash is not None:
-                        tup = (base_hash, *tup)  # type: ignore
-                    composite_hash = str(hash(tup))
-                except TypeError:
-                    print("Failed to hash: ", args, kwargs)
-                    raise
-                try:
-                    return db[composite_hash]
-                except KeyError:
-                    result = f(*args, **kwargs)
-                    db[composite_hash] = result
-                    return result
-
-            return ty.cast(F, wrapper)
+            return ty.cast(F, wraps(f)(Memoizing(db, base_hash, f)))
 
         return deco
 
