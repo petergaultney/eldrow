@@ -3,8 +3,7 @@ from collections import defaultdict
 from functools import partial, reduce
 from multiprocessing import Pool
 
-from .dbm_cache import elim_cache
-from .elimination import elimination_scorer, make_options
+from .elimination import DataForOptionsAfterGuess, elimination_scorer
 from .game import Game, HashableGame, get_options, hashable, novel_or_option, novelty
 
 
@@ -14,11 +13,12 @@ class CrossElim(ty.NamedTuple):
     option: bool
 
 
-@elim_cache
 def elim_game(candidates: tuple[str, ...], game: HashableGame) -> ty.Dict[str, CrossElim]:
     opts_tuple = get_options(game)
     nc = len(candidates)
-    elim_scorer = elimination_scorer(opts_tuple, make_options(set(game.alpha), opts_tuple, game.guesses))
+    elim_scorer = elimination_scorer(
+        opts_tuple, DataForOptionsAfterGuess(game.alpha, opts_tuple, game.guesses)
+    )
     cross_game_elimination_multipliers = dict()
     options_set = set(opts_tuple)
     for i, word in enumerate(candidates):

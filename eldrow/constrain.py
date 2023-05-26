@@ -6,7 +6,7 @@ from copy import deepcopy
 from .parse import guess_to_word
 from .parse import paren_yellow_parse as parse
 
-ALPHA = set(string.ascii_lowercase)
+ALPHA = frozenset(string.ascii_lowercase)
 
 
 __very_unusual_letters = "vzjxq"
@@ -95,7 +95,7 @@ def merge_constraints(*constraints: Constraint) -> Constraint:
     return merged
 
 
-def _narrow_constraint(alpha: ty.Set[str], constraint: Constraint) -> Constraint:
+def _narrow_constraint(alpha: frozenset[str], constraint: Constraint) -> Constraint:
     # at this point, it's possible to use position-by-position process
     # of elimination.  in other words, if a character is known to be
     # required N times but is eliminated in all but N locations, then
@@ -113,7 +113,7 @@ def _narrow_constraint(alpha: ty.Set[str], constraint: Constraint) -> Constraint
             if len(remaining_positions_allowed) == count:
                 pos_elims = deepcopy(pos_elims)
                 for pos in remaining_positions_allowed:
-                    pos_elims[pos] = alpha - {char}
+                    pos_elims[pos] = set(alpha - {char})
                 return pos_elims, char_counts
         return pos_elims, char_counts
 
@@ -124,7 +124,7 @@ def _narrow_constraint(alpha: ty.Set[str], constraint: Constraint) -> Constraint
         constraint = new_constraint
 
 
-def given2(*guesses: str, alpha: ty.Set[str] = ALPHA, empty_n: int = 5) -> Constraint:
+def given2(*guesses: str, alpha: frozenset[str] = ALPHA, empty_n: int = 5) -> Constraint:
     """Format:
 
     lowercase letters for incorrect guesses.
@@ -139,7 +139,7 @@ def given2(*guesses: str, alpha: ty.Set[str] = ALPHA, empty_n: int = 5) -> Const
     If the correct answer is BROWN, B(OR)oN would be the guess representation for 'boron'.
     """
     if not guesses:
-        return {i: alpha - set() for i in range(empty_n)}, dict()
+        return {i: set(alpha - set()) for i in range(empty_n)}, dict()
     elims, char_counts = merge_constraints(*[constraint(guess) for guess in guesses])
     #  total known characters    == number of characters per string
     if sum(char_counts.values()) == len(elims):
@@ -147,4 +147,4 @@ def given2(*guesses: str, alpha: ty.Set[str] = ALPHA, empty_n: int = 5) -> Const
         for eliminated in elims.values():
             eliminated |= alpha - set(char_counts)
     elims, char_counts = _narrow_constraint(alpha, (elims, char_counts))
-    return {i: alpha - e for i, e in elims.items()}, char_counts
+    return {i: set(alpha - e) for i, e in elims.items()}, char_counts

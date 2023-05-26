@@ -1,12 +1,9 @@
-from __future__ import annotations
-
 import itertools
 import typing as ty
 from dataclasses import dataclass
 
 from .constrain import given2, regexes2
-from .dbm_cache import elim_cache
-from .elimination import answer, elimination_scorer, make_options, options
+from .elimination import DataForOptionsAfterGuess, answer, elimination_scorer, options
 from .parse import guess_to_word
 from .scoring import (
     best_next_score,
@@ -21,7 +18,7 @@ from .scoring import (
 class Game:
     n: int
     wl: ty.Tuple[str, ...]
-    alpha: ty.Tuple[str, ...]
+    alpha: frozenset[str]
     solution: str
     guesses: ty.List[str]
     possibilities: ty.List[str]
@@ -31,14 +28,14 @@ class Game:
 class HashableGame(ty.NamedTuple):
     n: int
     wl: ty.Tuple[str, ...]
-    alpha: ty.Tuple[str, ...]
+    alpha: frozenset[str]
     guesses: ty.Tuple[str, ...]
     ignored: ty.Tuple[str, ...]
 
 
 def new_game(alpha: ty.Collection[str], wl: ty.Collection[str]) -> Game:
     wl = tuple(wl)
-    return Game(len(wl[0]), wl, tuple(alpha), "", list(), list(), set())
+    return Game(len(wl[0]), tuple(wl), frozenset(alpha), "", list(), list(), set())
 
 
 def hashable(game: Game) -> HashableGame:
@@ -50,7 +47,7 @@ def _simple_words(*guesses) -> ty.List[str]:
 
 
 def _given(game: HashableGame | Game):
-    return given2(*game.guesses, alpha=set(game.alpha), empty_n=game.n)
+    return given2(*game.guesses, alpha=game.alpha, empty_n=game.n)
 
 
 def letters(game: Game) -> ty.List[str]:
@@ -58,7 +55,7 @@ def letters(game: Game) -> ty.List[str]:
     return sorted({c.upper() for allowed in pos_allowed.values() for c in allowed})
 
 
-def get_options(game: HashableGame | Game) -> ty.Tuple[str, ...]:
+def get_options(game: HashableGame | Game) -> tuple[str, ...]:
     return tuple([w for w in options(regexes2(_given(game)), wl=game.wl) if w not in game.ignored])
 
 
@@ -67,7 +64,7 @@ def unparse(game: Game, guess: str) -> str:
     return answer(game.solution, guess) or guess
 
 
-def best_options(game: Game):
+def best_options(game: Game) -> list[tuple[int, str]]:
     remaining_words = get_options(game)
     return best_next_score(
         remaining_words,
@@ -82,12 +79,12 @@ def _novelty_scorer(game: Game | HashableGame) -> ty.Callable[..., float]:
     )
 
 
-def novelty(game: Game, *words: str) -> ty.List[ty.Tuple[str, float]]:
+def novelty(game: Game, *words: str) -> list[tuple[str, float]]:
     novelty_scorer = _novelty_scorer(game)
     return [(w, novelty_scorer(*_simple_words(*game.guesses), w)) for w in words]
 
 
-def best_novelty(game: Game, *words: str) -> ty.List[ty.Tuple[float, str]]:
+def best_novelty(game: Game, *words: str) -> list[tuple[float, str]]:
     novelty_scorer = _novelty_scorer(game)
     wordlist = [w for w in (words or game.wl) if w not in game.ignored]
     return [
@@ -111,8 +108,8 @@ class WordElim(ty.NamedTuple):
     scored_word: str
 
 
-@elim_cache
-def best_elim(game: HashableGame, wordlist: tuple[str, ...]) -> ty.List[WordElim]:
+# @elim_cache()
+def best_elim(game: HashableGame, wordlist: tuple[str, ...]) -> list[WordElim]:
     opts = get_options(game)
     novelty_scorer = _novelty_scorer(game)
     simple_guesses = _simple_words(*game.guesses)
@@ -126,18 +123,17 @@ def best_elim(game: HashableGame, wordlist: tuple[str, ...]) -> ty.List[WordElim
             xs = sorted(xs, key=sort)
         return xs
 
-    alpha_set = set(game.alpha)
     return sort_many(
         [by_novelty_score, by_is_option, by_elim_score],
         [
             WordElim(score, novelty_scorer(*simple_guesses, word), word in opts, word)
             for score, word in best_next_score(
                 wordlist,
-                *list(map(guess_to_word, game.guesses)),
+                # *list(map(guess_to_word, game.guesses)),
                 scorer=elimination_scorer(
                     opts,
-                    make_options(
-                        alpha_set,
+                    DataForOptionsAfterGuess(
+                        game.alpha,
                         opts,
                         game.guesses,
                     ),

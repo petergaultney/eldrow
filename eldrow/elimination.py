@@ -2,9 +2,10 @@ import re
 import typing as ty
 from collections import defaultdict
 from functools import cache
-from typing import Callable, List
+from typing import List
 
 from .constrain import given2, regexes2
+from .dbm_cache import elim_cache
 from .parse import guess_to_word
 from .scoring import Scorer
 from .words import five_letter_word_list
@@ -79,21 +80,27 @@ def answer(solution: str, guess: str) -> str:
 # best_elim 1 1200
 
 
-def make_options(
-    alpha: ty.Set[str],
+def options_after_guess(
+    alpha: frozenset[str],
     word_list: ty.Tuple[str, ...],
     guesses: ty.Sequence[str],
 ) -> ty.Callable[[str, str], ty.List[str]]:
-    def options_after_guess(solution: str, guess: str) -> List[str]:
+    def options_after_guess_(solution: str, guess: str) -> List[str]:
         constraint = given2(*(*guesses, answer(solution, guess)), alpha=alpha, empty_n=len(guess))
         return options(regexes2(constraint), wl=word_list)
 
-    return options_after_guess
+    return options_after_guess_
+
+
+class DataForOptionsAfterGuess(ty.NamedTuple):
+    alpha: frozenset[str]
+    word_list: ty.Tuple[str, ...]
+    guesses: ty.Sequence[str]
 
 
 def elimination_scorer(
     remaining_possibilities: ty.Collection[str],
-    options_after_guess: Callable[[str, str], ty.List[str]],
+    data_for_options_after_guess: DataForOptionsAfterGuess,
 ) -> Scorer:
     """The idea is to optimize discovering information _about_ the word
     rather than solving for the word itself. Therefore, knowledge of
@@ -108,7 +115,21 @@ def elimination_scorer(
     focus on picking letters that will reduce the total score in the
     position_scores dict.
     """
+    dfo = (
+        data_for_options_after_guess.alpha,
+        data_for_options_after_guess.word_list,
+        tuple(sorted(data_for_options_after_guess.guesses)),
+        # the constraints on your word are not affected by the order of guesses,
+        # so we can sort them to make the cache key slightly more consistent
+    )
+    the_options_would_be = options_after_guess(*data_for_options_after_guess)
 
+    if len(remaining_possibilities) > 15:
+        deco = elim_cache(tuple(remaining_possibilities), dfo)
+    else:
+        deco = lambda f: f  # noqa
+
+    @deco
     def scorer(*words: str) -> float:
         new_word_to_score = words[-1]
         total_eliminated = 0
@@ -116,7 +137,7 @@ def elimination_scorer(
             if assumed_solution == new_word_to_score:
                 num_left = 0
             else:
-                num_left = len(options_after_guess(assumed_solution, new_word_to_score))
+                num_left = len(the_options_would_be(assumed_solution, new_word_to_score))
             total_eliminated += len(remaining_possibilities) - num_left
         return round(total_eliminated / len(remaining_possibilities), 3)
 
