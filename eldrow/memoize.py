@@ -36,11 +36,12 @@ def pickle_cache(db: ty.MutableMapping[sb, bytes]) -> DecoFactory:
                 except TypeError:
                     print("Failed to hash: ", args, kwargs)
                     raise
-                if composite_hash in db:
+                try:
                     return db[composite_hash]
-                result = f(*args, **kwargs)
-                db[composite_hash] = result
-                return result
+                except KeyError:
+                    result = f(*args, **kwargs)
+                    db[composite_hash] = result
+                    return result
 
             return ty.cast(F, wrapper)
 

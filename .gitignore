@@ -1,2 +1,2 @@
 **/__pycache__/**
-elim_store.sqlite
+*.sqlite
