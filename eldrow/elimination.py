@@ -5,7 +5,7 @@ from functools import cache
 from typing import List
 
 from .constrain import given2, regexes2
-from .dbm_cache import elim_cache
+from .memoize import elim_cache
 from .parse import guess_to_word
 from .scoring import Scorer
 from .words import five_letter_word_list
