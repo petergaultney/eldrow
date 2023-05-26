@@ -5,7 +5,7 @@ from functools import cache
 from typing import List
 
 from .constrain import given2, regexes2
-from .memoize import elim_cache
+from .memoize import elim_cache, elim_store
 from .parse import guess_to_word
 from .scoring import Scorer
 from .words import five_letter_word_list
@@ -124,12 +124,6 @@ def elimination_scorer(
     )
     the_options_would_be = options_after_guess(*data_for_options_after_guess)
 
-    if len(remaining_possibilities) > 15:
-        deco = elim_cache(tuple(remaining_possibilities), dfo)
-    else:
-        deco = lambda f: f  # noqa
-
-    @deco
     def scorer(*words: str) -> float:
         new_word_to_score = words[-1]
         total_eliminated = 0
@@ -141,4 +135,6 @@ def elimination_scorer(
             total_eliminated += len(remaining_possibilities) - num_left
         return round(total_eliminated / len(remaining_possibilities), 3)
 
+    if len(remaining_possibilities) > 15:
+        return elim_cache(tuple(remaining_possibilities), dfo)(scorer)
     return scorer

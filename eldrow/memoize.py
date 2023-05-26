@@ -49,5 +49,5 @@ def pickle_cache(db: ty.MutableMapping[sb, bytes]) -> DecoFactory:
     return deco_factory
 
 
-elim_store = SqliteDict("eldrow_elim_store.sqlite", autocommit=True, outer_stack=False)
+elim_store = SqliteDict("eldrow_elim_store.sqlite", outer_stack=False)
 elim_cache = pickle_cache(elim_store)

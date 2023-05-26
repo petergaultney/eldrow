@@ -22,6 +22,7 @@ from .game import (
     novelty,
     unparse,
 )
+from .memoize import elim_store
 from .multi import all_novel, all_options, best_novelty_words_across_games, elim_across_games
 from .scoring import construct_position_freqs, score_words
 from .words import five_letter_word_list, sols
@@ -317,10 +318,13 @@ class IpythonCli(Magics):
         def fmt3(f):
             return f"{f: 3.3f}"
 
-        return [
-            (fmt3(t[0]), fmt3(t[1]), "🟨" if t[2] else "⬛", t[3])
-            for t in best_elim(hashable(game), wordlist)[-self.limit :]
-        ]
+        try:
+            return [
+                (fmt3(t[0]), fmt3(t[1]), "🟨" if t[2] else "⬛", t[3])
+                for t in best_elim(hashable(game), wordlist)[-self.limit :]
+            ]
+        finally:
+            elim_store.commit()
 
     @line_magic
     def best_elim(self, line):
@@ -369,7 +373,10 @@ class IpythonCli(Magics):
             options = "".join(["🟨" if k in ce.option else "⬛" for k in self.games.keys()])
             return (f"{ce.elim_ratio:8.3f}", solutions, options)
 
-        return [(w, *fmt_ce(ce)) for w, ce in elim_across_games(self.games, wordlist)[-self.limit :]]
+        try:
+            return [(w, *fmt_ce(ce)) for w, ce in elim_across_games(self.games, wordlist)[-self.limit :]]
+        finally:
+            elim_store.commit()
 
     @line_magic
     def elim(self, words):

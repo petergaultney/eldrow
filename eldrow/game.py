@@ -108,7 +108,6 @@ class WordElim(ty.NamedTuple):
     scored_word: str
 
 
-# @elim_cache()
 def best_elim(game: HashableGame, wordlist: tuple[str, ...]) -> list[WordElim]:
     opts = get_options(game)
     novelty_scorer = _novelty_scorer(game)
