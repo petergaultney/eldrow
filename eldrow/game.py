@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import itertools
 import typing as ty
 from dataclasses import dataclass
 
 from .constrain import given2, regexes2
+from .dbm_cache import elim_cache
 from .elimination import answer, elimination_scorer, make_options, options
 from .parse import guess_to_word
 from .scoring import (
@@ -18,23 +21,36 @@ from .scoring import (
 class Game:
     n: int
     wl: ty.Tuple[str, ...]
-    alpha: ty.Set[str]
+    alpha: ty.Tuple[str, ...]
     solution: str
     guesses: ty.List[str]
     possibilities: ty.List[str]
     ignored: ty.Set[str]
 
 
-def new_game(alpha, wl: ty.Tuple[str, ...]) -> Game:
-    return Game(len(wl[0]), wl, alpha, "", list(), list(), set())
+class HashableGame(ty.NamedTuple):
+    n: int
+    wl: ty.Tuple[str, ...]
+    alpha: ty.Tuple[str, ...]
+    guesses: ty.Tuple[str, ...]
+    ignored: ty.Tuple[str, ...]
+
+
+def new_game(alpha: ty.Collection[str], wl: ty.Collection[str]) -> Game:
+    wl = tuple(wl)
+    return Game(len(wl[0]), wl, tuple(alpha), "", list(), list(), set())
+
+
+def hashable(game: Game) -> HashableGame:
+    return HashableGame(game.n, game.wl, game.alpha, tuple(game.guesses), tuple(game.ignored))
 
 
 def _simple_words(*guesses) -> ty.List[str]:
     return [guess_to_word(guess) for guess in guesses]
 
 
-def _given(game: Game):
-    return given2(*game.guesses, alpha=game.alpha, empty_n=game.n)
+def _given(game: HashableGame | Game):
+    return given2(*game.guesses, alpha=set(game.alpha), empty_n=game.n)
 
 
 def letters(game: Game) -> ty.List[str]:
@@ -42,25 +58,13 @@ def letters(game: Game) -> ty.List[str]:
     return sorted({c.upper() for allowed in pos_allowed.values() for c in allowed})
 
 
-def get_options(game: Game) -> ty.Tuple[str, ...]:
+def get_options(game: HashableGame | Game) -> ty.Tuple[str, ...]:
     return tuple([w for w in options(regexes2(_given(game)), wl=game.wl) if w not in game.ignored])
 
 
 def unparse(game: Game, guess: str) -> str:
     assert game.solution
     return answer(game.solution, guess) or guess
-
-
-def guess(game: Game, *guesses: str) -> Game:
-    for guess in guesses:
-        if guess:
-            if game.solution:
-                guess = format(game, guess)
-            if guess_to_word(guess) not in game.wl:
-                return game
-            if guess not in game.guesses:
-                game.guesses.append(guess)
-    return game
 
 
 def best_options(game: Game):
@@ -72,7 +76,7 @@ def best_options(game: Game):
     )
 
 
-def _novelty_scorer(game: Game) -> ty.Callable[..., float]:
+def _novelty_scorer(game: Game | HashableGame) -> ty.Callable[..., float]:
     return score_for_novelty(
         replace_solved_with_average_totals(construct_position_freqs(get_options(game)))
     )
@@ -107,7 +111,8 @@ class WordElim(ty.NamedTuple):
     scored_word: str
 
 
-def best_elim(game: Game, wordlist: ty.Collection[str]) -> ty.List[WordElim]:
+@elim_cache
+def best_elim(game: HashableGame, wordlist: tuple[str, ...]) -> ty.List[WordElim]:
     opts = get_options(game)
     novelty_scorer = _novelty_scorer(game)
     simple_guesses = _simple_words(*game.guesses)
@@ -121,6 +126,7 @@ def best_elim(game: Game, wordlist: ty.Collection[str]) -> ty.List[WordElim]:
             xs = sorted(xs, key=sort)
         return xs
 
+    alpha_set = set(game.alpha)
     return sort_many(
         [by_novelty_score, by_is_option, by_elim_score],
         [
@@ -131,7 +137,7 @@ def best_elim(game: Game, wordlist: ty.Collection[str]) -> ty.List[WordElim]:
                 scorer=elimination_scorer(
                     opts,
                     make_options(
-                        game.alpha,
+                        alpha_set,
                         opts,
                         game.guesses,
                     ),

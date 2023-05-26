@@ -3,69 +3,57 @@ from collections import defaultdict
 from functools import partial, reduce
 from multiprocessing import Pool
 
+from .dbm_cache import elim_cache
 from .elimination import elimination_scorer, make_options
-from .game import Game, get_options, novel_or_option, novelty
+from .game import Game, HashableGame, get_options, hashable, novel_or_option, novelty
 
 
 class CrossElim(ty.NamedTuple):
     elim_ratio: float
-    solved: set
-    option: set
+    solved: bool
+    option: bool
 
 
-def _merge_cross_elims(
-    a: ty.Dict[str, CrossElim], b: ty.Dict[str, CrossElim]
-) -> ty.Dict[str, CrossElim]:
-    assert set(a) == set(b)
-
-    def merge(ac: CrossElim, bc: CrossElim) -> CrossElim:
-        return CrossElim(ac.elim_ratio * bc.elim_ratio, ac.solved | bc.solved, ac.option | bc.option)
-
-    return {word: merge(a[word], b[word]) for word in a}
-
-
-def _hash_game(game: Game) -> str:
-    return f"{game.n}-{game.alpha}-{len(game.wl)}-{game.guesses}"
-
-
-def caching_cross_elim_for_guesses_and_word(game: Game) -> CrossElim:
-    pass
-
-
-# TODO this is the one to cache using dbm.
-# remove key and most parts of game, and also get rid of candidates,
-# so that we have fewer things to hash.
-def elim_game(candidates: ty.Collection[str], key: str, game: Game) -> ty.Dict[str, CrossElim]:
-    opts = set(get_options(game))
-    elim_scorer = elimination_scorer(opts, make_options(game.alpha, tuple(opts), game.guesses))
+@elim_cache
+def elim_game(candidates: tuple[str, ...], game: HashableGame) -> ty.Dict[str, CrossElim]:
+    opts_tuple = get_options(game)
+    nc = len(candidates)
+    elim_scorer = elimination_scorer(opts_tuple, make_options(set(game.alpha), opts_tuple, game.guesses))
     cross_game_elimination_multipliers = dict()
-    for word in candidates:
+    options_set = set(opts_tuple)
+    for i, word in enumerate(candidates):
         elim_count = elim_scorer(word)
-        game_elim_ratio = (elim_count + 1) / len(opts)
+        game_elim_ratio = (elim_count + 1) / len(opts_tuple)
         cross_game_elimination_multipliers[word] = CrossElim(
-            (game_elim_ratio if len(opts) != 1 else 1.0),
-            {key} if elim_count >= len(opts) - 1 else set(),
-            {key} if word in opts else set(),
+            (game_elim_ratio if len(opts_tuple) != 1 else 1.0),
+            elim_count >= len(opts_tuple) - 1,
+            word in options_set,
         )
+        left = nc - i
+        if left % 1000 == 0:
+            print(f"{left} words left against {len(opts_tuple)} options")
+    print(f"finished with {len(opts_tuple)} options")
     return cross_game_elimination_multipliers
 
 
+class GameCrossElim(ty.NamedTuple):
+    elim_ratio: float
+    solved: set[str]
+    option: set[str]
+
+
 def _p_elim_game(
-    candidates: ty.Collection[str], key_game: ty.Tuple[str, Game]
-) -> ty.Dict[str, CrossElim]:
-    return elim_game(candidates, *key_game)
-
-    # import cProfile
-
-    # key, game = key_game
-    # res = None
-
-    # def profile():
-    #     nonlocal res
-    #     res = elim_game(candidates, *key_game)
-
-    # cProfile.runctx("profile()", globals(), locals(), f"prof{key}.prof")
-    # return res
+    candidates: tuple[str, ...], key_game: ty.Tuple[str, Game]
+) -> ty.Dict[str, GameCrossElim]:
+    key, game = key_game
+    return {
+        word: GameCrossElim(
+            ce.elim_ratio,
+            {key} if ce.solved else set(),
+            {key} if ce.option else set(),
+        )
+        for word, ce in elim_game(candidates, hashable(game)).items()
+    }
 
 
 def all_options(*games: Game) -> ty.Set[str]:
@@ -99,12 +87,24 @@ def best_novelty_words_across_games(
     ]
 
 
+def _merge_game_cross_elims(
+    a: ty.Dict[str, GameCrossElim], b: ty.Dict[str, GameCrossElim]
+) -> ty.Dict[str, GameCrossElim]:
+    assert set(a) == set(b)
+
+    def merge(ac: GameCrossElim, bc: GameCrossElim) -> GameCrossElim:
+        return GameCrossElim(ac.elim_ratio * bc.elim_ratio, ac.solved | bc.solved, ac.option | bc.option)
+
+    return {word: merge(a[word], b[word]) for word in a}
+
+
 def elim_across_games(
     games: ty.Dict[ty.Any, Game], wordlist: ty.Collection[str]
-) -> ty.List[ty.Tuple[str, CrossElim]]:
+) -> ty.List[ty.Tuple[str, GameCrossElim]]:
+    wordlist_t = tuple(wordlist)
     with Pool(len(games)) as pool:
         cross_game_elimination_multipliers = reduce(
-            _merge_cross_elims, pool.map(partial(_p_elim_game, wordlist), games.items())
+            _merge_game_cross_elims, pool.map(partial(_p_elim_game, wordlist_t), games.items())
         )
 
     game_wordlist = set(list(games.values())[0].wl)

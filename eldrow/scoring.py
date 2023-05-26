@@ -1,10 +1,9 @@
 from collections import defaultdict
-from itertools import combinations
 from typing import Callable, Collection, Dict, List, Tuple
 
 from .words import five_letter_word_list
 
-PositionScores = Dict[int, Dict[str, int]]
+PositionScores = Dict[int, Dict[str, float]]
 
 
 def _sort_dict_by_values(d):
@@ -15,8 +14,8 @@ def _xf_dict_vals(xf, d):
     return {k: xf(v) for k, v in d.items()}
 
 
-def construct_position_freqs(word_list: Tuple[str, ...], decimal_points=5) -> PositionScores:
-    counts = defaultdict(lambda: defaultdict(int))
+def construct_position_freqs(word_list: Collection[str], decimal_points=5) -> PositionScores:
+    counts: dict[int, dict[str, float]] = defaultdict(lambda: defaultdict(int))
     for word in word_list:
         for i, char in enumerate(word):
             counts[i][char] += 1
@@ -37,7 +36,7 @@ def score_words(position_scores: dict = position_scores) -> Scorer:
     """Scores words based on total positional score across the word list."""
 
     def _score_words(*words: str) -> float:
-        scored_in_position = defaultdict(lambda: defaultdict(lambda: False))
+        scored_in_position: dict[int, dict[str, bool]] = defaultdict(lambda: defaultdict(lambda: False))
 
         def score_word(w: str) -> float:
             word_score = 0
@@ -90,16 +89,6 @@ def score_for_novelty(position_scores: dict = position_scores) -> Scorer:
     return _score_for_novelty
 
 
-def high_score_tuples(
-    word_list: Tuple[str, ...] = five_letter_word_list, n: int = 2
-) -> List[Tuple[int, str, str]]:
-    scored: List[Tuple[int, str, str]] = list()
-    for words in combinations(word_list, n):
-        score = score_for_novelty()(*words)
-        scored.append((score, *words))
-    return sorted(scored)
-
-
 def best_next_score(
     word_list: Collection[str], *starting_words, scorer=score_words()
 ) -> List[Tuple[int, str]]:
@@ -121,7 +110,7 @@ def _remove_solved(position_scores: PositionScores) -> PositionScores:
 def replace_solved_with_average_totals(
     position_scores: PositionScores,
 ) -> PositionScores:
-    avg_unsolved_total = defaultdict(int)
+    avg_unsolved_total: dict[str, float] = defaultdict(int)
     solved_letters = {
         list(letters.keys())[0] for letters in position_scores.values() if len(letters) == 1
     }

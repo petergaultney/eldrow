@@ -449,6 +449,17 @@ files = [
 ]
 
 [[package]]
+name = "sqlitedict"
+version = "2.1.0"
+description = "Persistent dict in Python, backed up by sqlite3 and pickle, multithread-safe."
+category = "main"
+optional = false
+python-versions = "*"
+files = [
+    {file = "sqlitedict-2.1.0.tar.gz", hash = "sha256:03d9cfb96d602996f1d4c2db2856f1224b96a9c431bdd16e78032a72940f9e8c"},
+]
+
+[[package]]
 name = "stack-data"
 version = "0.6.2"
 description = "Extract data from python stack frames and tracebacks for informative displays"
@@ -523,4 +534,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "8f6eae506cd4099fecfdc50dc7db01ce7b85d68c78660ace23d334e6cd6291a8"
+content-hash = "9239eae19ae3ae8c231f67296347b3cdc85a5f1183110fed074095716e5d7a8f"

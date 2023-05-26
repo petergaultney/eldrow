@@ -34,7 +34,7 @@ def answer(solution: str, guess: str) -> str:
     if len(solution) != len(guess):
         return guess
     guess = guess_to_word(guess)
-    char_counts = defaultdict(int)
+    char_counts: dict[str, int] = defaultdict(int)
     for c in solution:
         char_counts[c] += 1
 
@@ -83,7 +83,7 @@ def make_options(
     alpha: ty.Set[str],
     word_list: ty.Tuple[str, ...],
     guesses: ty.Sequence[str],
-):
+) -> ty.Callable[[str, str], ty.List[str]]:
     def options_after_guess(solution: str, guess: str) -> List[str]:
         constraint = given2(*(*guesses, answer(solution, guess)), alpha=alpha, empty_n=len(guess))
         return options(regexes2(constraint), wl=word_list)

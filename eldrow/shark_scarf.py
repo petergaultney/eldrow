@@ -3,7 +3,7 @@ from collections import defaultdict
 from itertools import combinations
 
 from .constrain import ALPHA
-from .game import WordElim, best_elim, new_game
+from .game import WordElim, best_elim, hashable, new_game
 from .words import sols
 
 _COMBS = dict()
@@ -77,7 +77,7 @@ def shark_scarf_paths(pattern: str, shark_scarf: ty.Collection[str]) -> ty.Itera
         game = new_game(ALPHA, sols)
         g = w_to_g(w)
         game.guesses.append(g)
-        yield Path(w, g, best_elim(game)[-1])
+        yield Path(w, g, best_elim(hashable(game))[-1])
 
 
 class PathStats(ty.NamedTuple):

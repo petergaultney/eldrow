@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import getpass
 import json
 import random
@@ -9,7 +11,17 @@ from IPython.core.magic import Magics, line_magic, magics_class
 from . import colors
 from .constrain import ALPHA, guess_to_word
 from .explore import explore
-from .game import Game, best_elim, best_options, get_options, letters, new_game, novelty, unparse
+from .game import (
+    Game,
+    best_elim,
+    best_options,
+    get_options,
+    hashable,
+    letters,
+    new_game,
+    novelty,
+    unparse,
+)
 from .multi import all_novel, all_options, best_novelty_words_across_games, elim_across_games
 from .scoring import construct_position_freqs, score_words
 from .words import five_letter_word_list, sols
@@ -54,26 +66,26 @@ def _instruction_line_to_chosen_wordlist(
 
     limit = _int(bits[0])
     if limit is not None:
-        return default(limit)
+        return default()  # no longer limit this; instead we cache
 
     name = bits[0].lower()
     if name not in named:
         return bits
 
-    args = list()
-    if len(bits) == 2:
-        limit = _int(bits[1])
-        if limit is not None:
-            args.append(limit)
+    # args = list()
+    # if len(bits) == 2:
+    #     limit = _int(bits[1])
+    #     if limit is not None:
+    #         args.append(limit)
 
-    return named[name](*args)
+    return named[name]()
 
 
 def _all_or_opts_wordlist_creators(games: Collection[Game]) -> dict[str, Callable[..., list[str]]]:
-    def best_sols(limit: int = 1000):
+    def best_sols(limit: int = 99999):
         return best_novelty_words_across_games(games, limit, all_novel(limit, *games))
 
-    def best_opts(limit: int = 1000):
+    def best_opts(limit: int = 99999):
         return best_novelty_words_across_games(games, limit, all_options(*games))
 
     def best_all(limit: int = 0):
@@ -307,7 +319,7 @@ class IpythonCli(Magics):
 
         return [
             (fmt3(t[0]), fmt3(t[1]), "🟨" if t[2] else "⬛", t[3])
-            for t in best_elim(game, wordlist)[-self.limit :]
+            for t in best_elim(hashable(game), wordlist)[-self.limit :]
         ]
 
     @line_magic

@@ -34,7 +34,7 @@ def regexes2(constraint: Constraint) -> ty.Tuple[str, ...]:
     return ("".join((pos(i) for i in positions)), *[count(c, i) for c, i in counts.items()])
 
 
-def constraint(guess: str, alpha: ty.Set[str] = ALPHA) -> Constraint:
+def constraint(guess: str, alpha: ty.Collection[str] = ALPHA) -> Constraint:
     n = len(guess_to_word(guess))
     position_eliminations: PositionEliminations = {i: set() for i in range(n)}
     char_counts: CharacterCount = defaultdict(int)
@@ -45,8 +45,10 @@ def constraint(guess: str, alpha: ty.Set[str] = ALPHA) -> Constraint:
             if len(position_eliminations[i]) < len(alpha) - 1:
                 position_eliminations[i].add(c)
 
+    alpha_set = set(alpha)
+
     def require(rc, i):
-        position_eliminations[i] = alpha - {rc}
+        position_eliminations[i] = alpha_set - {rc}
 
     already_yellow = set()
     for i, (color, c) in enumerate(parse(guess)):
@@ -88,7 +90,7 @@ def _merge_constraints(ca: Constraint, cb: Constraint) -> Constraint:
 def merge_constraints(*constraints: Constraint) -> Constraint:
     merged = None
     for constraint in constraints:
-        merged = constraint if merged is None else _merge_constraints(merged, constraint)
+        merged = constraint if merged is None else _merge_constraints(merged, constraint)  # type: ignore
     assert merged, "Cannot merge zero constraints"
     return merged
 
@@ -122,7 +124,7 @@ def _narrow_constraint(alpha: ty.Set[str], constraint: Constraint) -> Constraint
         constraint = new_constraint
 
 
-def given2(*guesses, alpha: ty.Set[str] = ALPHA, empty_n: int = 5) -> Constraint:
+def given2(*guesses: str, alpha: ty.Set[str] = ALPHA, empty_n: int = 5) -> Constraint:
     """Format:
 
     lowercase letters for incorrect guesses.
