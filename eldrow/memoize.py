@@ -1,3 +1,4 @@
+import sys
 import typing as ty
 from functools import wraps
 
@@ -8,6 +9,9 @@ Deco = ty.Callable[[F], F]
 DecoFactory = ty.Callable[..., Deco]
 
 sb = str | bytes
+
+
+assert sys.flags.hash_randomization == 0, "hash randomization must be disabled for memoization to work"
 
 
 class Memoizing:
