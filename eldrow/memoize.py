@@ -38,7 +38,7 @@ class Memoizing:
         try:
             return db[composite_hash]
         except KeyError:
-            raise ValueError(f"Lookup failure for {composite_hash} args: {args}, {kwargs}")
+            raise ValueError(f"Lookup failure for {base_hash} {composite_hash} args: {args}, {kwargs}")
             result = f(*args, **kwargs)
             db[composite_hash] = result
             self._misses += 1
