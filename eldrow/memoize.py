@@ -1,3 +1,4 @@
+import os
 import sys
 import typing as ty
 from functools import wraps
@@ -38,7 +39,6 @@ class Memoizing:
         try:
             return db[composite_hash]
         except KeyError:
-            raise ValueError(f"Lookup failure for {base_hash} {composite_hash} args: {args}, {kwargs}")
             result = f(*args, **kwargs)
             db[composite_hash] = result
             self._misses += 1
@@ -66,7 +66,6 @@ def pickle_cache(db: ty.MutableMapping[sb, bytes]) -> DecoFactory:
         if outer_args or outer_kwargs:
             outer = (outer_args, tuple(outer_kwargs.items()))
             base_hash = hash(outer)
-            print(outer, base_hash)
         else:
             base_hash = None
 
@@ -78,5 +77,9 @@ def pickle_cache(db: ty.MutableMapping[sb, bytes]) -> DecoFactory:
     return deco_factory
 
 
-elim_store = SqliteDict("eldrow_elim_store.sqlite", outer_stack=False)
+elim_store = SqliteDict(
+    "eldrow_elim_store.sqlite",
+    outer_stack=False,
+    autocommit=not bool(os.getenv("ELDROW_SINGLETHREADED")),
+)
 elim_cache = pickle_cache(elim_store)

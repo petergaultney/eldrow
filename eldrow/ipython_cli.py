@@ -168,7 +168,7 @@ class IpythonCli(Magics):
     @line_magic
     def record(self, _):
         """Call this after finishing a game."""
-        assert len(self.games) == 1
+        assert len(self.games) == 1, "You probably don't want to record multiple games"
         game = self.games[self.game_key]
         if len(guess_to_word(game.guesses[-1])) == self.n and len(get_options(game)) == 1:
             with open("played.json", "a") as f:
