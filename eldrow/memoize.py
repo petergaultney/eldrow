@@ -64,7 +64,9 @@ def pickle_cache(db: ty.MutableMapping[sb, bytes]) -> DecoFactory:
 
     def deco_factory(*outer_args, **outer_kwargs) -> Deco:
         if outer_args or outer_kwargs:
-            base_hash = hash((outer_args, tuple(outer_kwargs.items())))
+            outer = (outer_args, tuple(outer_kwargs.items()))
+            base_hash = hash(outer)
+            print(outer, base_hash)
         else:
             base_hash = None
 
