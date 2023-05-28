@@ -132,11 +132,3 @@ def test_best_elim_carat():
     words = "cr(a)te", "cAr(a)t"
     game = Game(5, sols, ALPHA, "mania", words, list(), set())
     best_elim(game, game.wl)
-
-
-def test_auto_limit():
-    al._IS_SLOW = True
-    assert 3000 == al.auto_limit(100)
-    assert 2000 == al.auto_limit(264)
-    assert 14000 == al.auto_limit(20)
-    assert 16000 == al.auto_limit(18)

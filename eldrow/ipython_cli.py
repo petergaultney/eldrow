@@ -57,8 +57,9 @@ def _instruction_line_to_chosen_wordlist(
     cb = default
     if bits[0] in named:
         cb = named[bits[0].lower()]
+        bits.pop(0)
 
-    if len(bits) == 1:
+    if not bits:
         return cb()
 
     def _limit(s: str) -> None | int:
@@ -69,6 +70,7 @@ def _instruction_line_to_chosen_wordlist(
 
     limit = _limit(bits[0])
     if limit:
+        print(f"Using limit {limit}")
         return cb(limit)
     return cb()
 

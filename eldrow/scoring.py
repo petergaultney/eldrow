@@ -100,6 +100,12 @@ def best_next_score(
     best_words = list()
     for w_next in word_list:
         best_words.append((scorer(*starting_words, w_next), w_next))
+
+    try:
+        print(scorer.hit_rate)
+    except AttributeError:
+        pass
+
     return sorted(best_words, key=lambda t: t[0])
 
 
