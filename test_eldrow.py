@@ -1,3 +1,4 @@
+import eldrow.auto_limit as al
 import eldrow.game as g
 from eldrow.constrain import ALPHA, constraint, given2, merge_constraints
 from eldrow.explore import explore
@@ -130,4 +131,12 @@ def test_options_carat():
 def test_best_elim_carat():
     words = "cr(a)te", "cAr(a)t"
     game = Game(5, sols, ALPHA, "mania", words, list(), set())
-    best_elim(game, game.wl, 1200)
+    best_elim(game, game.wl)
+
+
+def test_auto_limit():
+    al._IS_SLOW = True
+    assert 3000 == al.auto_limit(100)
+    assert 2000 == al.auto_limit(264)
+    assert 14000 == al.auto_limit(20)
+    assert 16000 == al.auto_limit(18)

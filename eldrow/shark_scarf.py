@@ -45,7 +45,7 @@ def find_threes(*words, min_length: int = 10):
 
 
 def counted(threes):
-    by_count = defaultdict(dict)
+    by_count: dict[int, dict] = defaultdict(dict)
     for k, v in threes.items():
         by_count[len(v)][k] = v
     return {k: by_count[k] for k in sorted(by_count.keys())}
@@ -77,7 +77,7 @@ def shark_scarf_paths(pattern: str, shark_scarf: ty.Collection[str]) -> ty.Itera
         game = new_game(ALPHA, sols)
         g = w_to_g(w)
         game.guesses.append(g)
-        yield Path(w, g, best_elim(hashable(game))[-1])
+        yield Path(w, g, best_elim(hashable(game), game.wl)[-1])
 
 
 class PathStats(ty.NamedTuple):

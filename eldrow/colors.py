@@ -7,6 +7,7 @@ CYELLOW = "\33[33m"
 CRED = "\33[31m"
 CBLUE = "\33[34m"
 CEND = "\33[0m"
+CORANGE = "\033[48;2;255;165;0m"
 
 
 def colorize(*guesses: str) -> List[str]:

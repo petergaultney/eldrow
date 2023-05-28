@@ -75,11 +75,6 @@ def answer(solution: str, guess: str) -> str:
     return "".join(results)
 
 
-# bug with following inputs:
-# cr(a)te cAr(a)t
-# best_elim 1 1200
-
-
 def options_after_guess(
     alpha: frozenset[str],
     word_list: ty.Tuple[str, ...],
@@ -135,6 +130,6 @@ def elimination_scorer(
             total_eliminated += len(remaining_possibilities) - num_left
         return round(total_eliminated / len(remaining_possibilities), 3)
 
-    if len(remaining_possibilities) > 15:
+    if len(remaining_possibilities) > 10:
         return elim_cache(tuple(remaining_possibilities), dfo)(scorer)
     return scorer

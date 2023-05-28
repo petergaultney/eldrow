@@ -79,12 +79,12 @@ def _novelty_scorer(game: Game | HashableGame) -> ty.Callable[..., float]:
     )
 
 
-def novelty(game: Game, *words: str) -> list[tuple[str, float]]:
+def novelty(game: Game | HashableGame, *words: str) -> list[tuple[str, float]]:
     novelty_scorer = _novelty_scorer(game)
     return [(w, novelty_scorer(*_simple_words(*game.guesses), w)) for w in words]
 
 
-def best_novelty(game: Game, *words: str) -> list[tuple[float, str]]:
+def best_novelty(game: Game | HashableGame, *words: str) -> list[tuple[float, str]]:
     novelty_scorer = _novelty_scorer(game)
     wordlist = [w for w in (words or game.wl) if w not in game.ignored]
     return [
@@ -108,7 +108,7 @@ class WordElim(ty.NamedTuple):
     scored_word: str
 
 
-def best_elim(game: HashableGame, wordlist: tuple[str, ...]) -> list[WordElim]:
+def best_elim(game: HashableGame, wordlist: ty.Collection[str]) -> list[WordElim]:
     opts = get_options(game)
     novelty_scorer = _novelty_scorer(game)
     simple_guesses = _simple_words(*game.guesses)
@@ -128,7 +128,6 @@ def best_elim(game: HashableGame, wordlist: tuple[str, ...]) -> list[WordElim]:
             WordElim(score, novelty_scorer(*simple_guesses, word), word in opts, word)
             for score, word in best_next_score(
                 wordlist,
-                # *list(map(guess_to_word, game.guesses)),
                 scorer=elimination_scorer(
                     opts,
                     DataForOptionsAfterGuess(

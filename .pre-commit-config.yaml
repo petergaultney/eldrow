@@ -40,3 +40,10 @@ repos:
         require_serial: true
         types: [python]
         entry: poetry run black --config pyproject.toml
+
+      - id: mypy
+        name: mypy
+        entry: poetry run mypy scripts/ eldrow/
+        language: system
+        pass_filenames: false
+        require_serial: true

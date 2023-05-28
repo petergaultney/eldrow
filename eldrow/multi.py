@@ -1,3 +1,4 @@
+import os
 import typing as ty
 from collections import defaultdict
 from functools import partial, reduce
@@ -5,6 +6,9 @@ from multiprocessing import Pool
 
 from .elimination import DataForOptionsAfterGuess, elimination_scorer
 from .game import Game, HashableGame, get_options, hashable, novel_or_option, novelty
+from .words import five_letter_word_list
+
+_DEFAULT_WORDLIST_LIMIT = int(os.getenv("ELDROW_WORDLIST_LIMIT", 12973))
 
 
 class CrossElim(ty.NamedTuple):
@@ -56,14 +60,14 @@ def _p_elim_game(
     }
 
 
-def all_options(*games: Game) -> ty.Set[str]:
+def _all_options(*games: Game) -> ty.Set[str]:
     wordlist = set()
     for game in games:
         wordlist |= set(get_options(game))
     return wordlist
 
 
-def all_novel(limit: int, *games: Game) -> ty.Set[str]:
+def _all_novel(limit: int, *games: Game) -> ty.Set[str]:
     wordlist = set()
     for game in games:
         game_options = set(get_options(game))
@@ -71,8 +75,8 @@ def all_novel(limit: int, *games: Game) -> ty.Set[str]:
     return wordlist
 
 
-def best_novelty_words_across_games(
-    games: ty.Collection[Game],
+def _best_novelty_words_across_games(
+    games: ty.Collection[Game | HashableGame],
     limit: int,
     wordlist: ty.Collection[str],
 ) -> ty.List[str]:
@@ -85,6 +89,21 @@ def best_novelty_words_across_games(
     return [w for w, s in sorted(cross_game_novelty_scores.items(), key=lambda t: t[1], reverse=True)][
         :limit
     ]
+
+
+def all_or_opts_wordlist_creators(games: ty.Collection[Game]) -> dict[str, ty.Callable[..., list[str]]]:
+    def best_sols(limit: int = _DEFAULT_WORDLIST_LIMIT):
+        return _best_novelty_words_across_games(games, limit, _all_novel(limit, *games))
+
+    def best_opts(limit: int = _DEFAULT_WORDLIST_LIMIT):
+        return _best_novelty_words_across_games(games, limit, _all_options(*games))
+
+    def best_all(limit: int = 0):
+        if not limit:
+            return five_letter_word_list
+        return _best_novelty_words_across_games(games, limit, five_letter_word_list)
+
+    return dict(default=best_all, sols=best_sols, opts=best_opts)
 
 
 def _merge_game_cross_elims(

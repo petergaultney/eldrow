@@ -4,13 +4,15 @@ import getpass
 import json
 import random
 import re
-from typing import Callable, Collection
+from typing import Callable
 
 from IPython.core.magic import Magics, line_magic, magics_class
 
 from . import colors
+from .auto_limit import auto_limit
 from .constrain import ALPHA, guess_to_word
 from .explore import explore
+from .formatting import _format_welim, _p
 from .game import (
     Game,
     best_elim,
@@ -23,7 +25,7 @@ from .game import (
     unparse,
 )
 from .memoize import elim_store
-from .multi import all_novel, all_options, best_novelty_words_across_games, elim_across_games
+from .multi import all_or_opts_wordlist_creators, elim_across_games
 from .scoring import construct_position_freqs, score_words
 from .words import five_letter_word_list, sols
 
@@ -33,12 +35,6 @@ def kill_words(*words: str) -> None:
         for word in words:
             if word:
                 f.write(word + "\n")
-
-
-def _p(game: Game, multiline: bool = False):
-    if multiline:
-        return "\n        ".join(["", *colors.colorize(*game.guesses)])
-    return "  ".join(colors.colorize(*game.guesses))
 
 
 def _game_color(opts: int, poss: int) -> str:
@@ -51,13 +47,6 @@ def _game_color(opts: int, poss: int) -> str:
     return colors.CEND
 
 
-def _int(s: str) -> None | int:
-    try:
-        return int(s)
-    except ValueError:
-        return None
-
-
 def _instruction_line_to_chosen_wordlist(
     line: str, default: Callable[..., list[str]], **named: Callable[..., list[str]]
 ) -> list[str]:
@@ -65,36 +54,23 @@ def _instruction_line_to_chosen_wordlist(
     if not bits:
         return default()
 
-    limit = _int(bits[0])
-    if limit is not None:
-        return default()  # no longer limit this; instead we cache
+    cb = default
+    if bits[0] in named:
+        cb = named[bits[0].lower()]
 
-    name = bits[0].lower()
-    if name not in named:
-        return bits
+    if len(bits) == 1:
+        return cb()
 
-    # args = list()
-    # if len(bits) == 2:
-    #     limit = _int(bits[1])
-    #     if limit is not None:
-    #         args.append(limit)
+    def _limit(s: str) -> None | int:
+        try:
+            return int(s)
+        except ValueError:
+            return None
 
-    return named[name]()
-
-
-def _all_or_opts_wordlist_creators(games: Collection[Game]) -> dict[str, Callable[..., list[str]]]:
-    def best_sols(limit: int = 99999):
-        return best_novelty_words_across_games(games, limit, all_novel(limit, *games))
-
-    def best_opts(limit: int = 99999):
-        return best_novelty_words_across_games(games, limit, all_options(*games))
-
-    def best_all(limit: int = 0):
-        if not limit:
-            return five_letter_word_list
-        return best_novelty_words_across_games(games, limit, five_letter_word_list)
-
-    return dict(default=best_all, sols=best_sols, opts=best_opts)
+    limit = _limit(bits[0])
+    if limit:
+        return cb(limit)
+    return cb()
 
 
 @magics_class
@@ -315,14 +291,8 @@ class IpythonCli(Magics):
     def _best_elim(self, game, wordlist):
         self._summarize(game)
 
-        def fmt3(f):
-            return f"{f: 3.3f}"
-
         try:
-            return [
-                (fmt3(t[0]), fmt3(t[1]), "🟨" if t[2] else "⬛", t[3])
-                for t in best_elim(hashable(game), wordlist)[-self.limit :]
-            ]
+            return [_format_welim(t) for t in best_elim(hashable(game), wordlist)[-self.limit :]]
         finally:
             elim_store.commit()
 
@@ -334,10 +304,11 @@ class IpythonCli(Magics):
         of options.
         """
         game, limit_instr = self._prs(line)
+        limit_instr += f" {auto_limit(len(get_options(game)))}"
 
         return self._best_elim(
             game,
-            _instruction_line_to_chosen_wordlist(limit_instr, **_all_or_opts_wordlist_creators([game])),
+            _instruction_line_to_chosen_wordlist(limit_instr, **all_or_opts_wordlist_creators([game])),
         )
 
     @line_magic
@@ -366,7 +337,7 @@ class IpythonCli(Magics):
 
         games = list(self.games.values())
 
-        wordlist = _instruction_line_to_chosen_wordlist(line, **_all_or_opts_wordlist_creators(games))
+        wordlist = _instruction_line_to_chosen_wordlist(line, **all_or_opts_wordlist_creators(games))
 
         def fmt_ce(ce):
             solutions = "".join(["🟩" if k in ce.solved else "⬛" for k in self.games.keys()])
@@ -406,4 +377,5 @@ class IpythonCli(Magics):
 
 
 def load_ipython_extension(ipython):  # magic name
+    ipython.register_magics(IpythonCli)
     ipython.register_magics(IpythonCli)
