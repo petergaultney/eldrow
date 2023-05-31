@@ -149,7 +149,7 @@ class IpythonCli(Magics):
         assert len(self.games) == 1, "You probably don't want to record multiple games"
         game = self.games[self.game_key]
         if len(guess_to_word(game.guesses[-1])) == self.n and len(get_options(game)) == 1:
-            with open("played.json", "a") as f:
+            with open("played.jsonl", "a") as f:
                 f.write(json.dumps(game.guesses) + "\n")
 
     @line_magic
