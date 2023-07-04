@@ -110,10 +110,11 @@ def elimination_scorer(
     focus on picking letters that will reduce the total score in the
     position_scores dict.
     """
+    alpha, word_list, guesses = data_for_options_after_guess
     dfo = (
-        data_for_options_after_guess.alpha,
-        data_for_options_after_guess.word_list,
-        tuple(sorted(data_for_options_after_guess.guesses)),
+        alpha,
+        word_list,
+        tuple(sorted(guesses)),
         # the constraints on your word are not affected by the order of guesses,
         # so we can sort them to make the cache key slightly more consistent
     )
@@ -130,6 +131,6 @@ def elimination_scorer(
             total_eliminated += len(remaining_possibilities) - num_left
         return round(total_eliminated / len(remaining_possibilities), 3)
 
-    if len(remaining_possibilities) > 10:
+    if len(guesses) < 4:
         return elim_cache(tuple(remaining_possibilities), dfo)(scorer)
     return scorer
