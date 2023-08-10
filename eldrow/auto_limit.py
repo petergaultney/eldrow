@@ -1,7 +1,4 @@
-import math
 import os
-
-from .words import five_letter_word_list
 
 _IS_SLOW = os.getenv("ELDROW_SLOW")
 
