@@ -4,7 +4,7 @@ import getpass
 import json
 import random
 import re
-from typing import Callable
+from typing import Callable, List
 
 from IPython.core.magic import Magics, line_magic, magics_class
 
@@ -92,6 +92,13 @@ class IpythonCli(Magics):
         game.ignored = to_ignore
         self.games[index] = game
         return game
+
+    def _previous_solutions(self) -> List[str]:
+        prev_sols = list()
+        with open("played.jsonl") as pj:
+            for line in pj.read().splitlines():
+                prev_sols.append(json.loads(line)[-1].lower())
+        return prev_sols
 
     def _prs(self, line) -> tuple[Game, str]:
         m = re.match(r"^\s*(\d+)(.*)", line or "")
@@ -376,6 +383,19 @@ class IpythonCli(Magics):
             self.games = dict()
             self.game_key = 1
             self._new_game(self.game_key)
+
+    def _remove_prev_sols(self):
+        """We don't do this by default. It's only for when you're pretty sure you've
+        guessed a word before and you don't want to re-guess it, but also don't want to go
+        check manually.
+        """
+        prev_sols = self._previous_solutions()
+        for game in self.games.values():
+            game.ignored |= set(prev_sols)
+
+    @line_magic
+    def rs(self, word):
+        return self._remove_prev_sols()
 
 
 def load_ipython_extension(ipython):  # magic name
