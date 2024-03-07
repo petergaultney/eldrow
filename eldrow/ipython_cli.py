@@ -392,10 +392,11 @@ class IpythonCli(Magics):
         prev_sols = self._previous_solutions()
         for game in self.games.values():
             game.ignored |= set(prev_sols)
+            self._summarize(game)
 
     @line_magic
-    def rs(self, word):
-        return self._remove_prev_sols()
+    def rms(self, word):
+        self._remove_prev_sols()
 
 
 def load_ipython_extension(ipython):  # magic name
